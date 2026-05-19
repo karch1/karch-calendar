@@ -742,6 +742,10 @@ from "https://www.gstatic.com/firebasejs/12.13.0/firebase-messaging.js";
 
     let chatUnsub = null;
 
+let lastMessageId = null;
+
+let isFirstChatLoad = true;
+
     /* =========================
        USER MAP
     ========================= */
@@ -1020,42 +1024,49 @@ const mobileChatToggle =
 const chatSidebar =
     document.getElementById("chatSidebar");
 
-mobileChatToggle.onclick = ()=>{
+if(mobileChatToggle){
 
-    if(
-        chatSidebar.classList.contains("chat-open")
-    ){
+    mobileChatToggle.onclick = ()=>{
 
-        chatSidebar.classList.remove("chat-open");
+        if(
+            chatSidebar.classList.contains("chat-open")
+        ){
 
-        chatSidebar.classList.add("chat-closed");
+            chatSidebar.classList.remove("chat-open");
 
-    } else {
+            chatSidebar.classList.add("chat-closed");
 
-        chatSidebar.classList.remove("chat-closed");
+        } else {
 
-        chatSidebar.classList.add("chat-open");
-    }
-};
+            chatSidebar.classList.remove("chat-closed");
 
-    /* =========================
-       EDIT OPEN
-    ========================= */
-
-    window.editEvent = function(e){
-    if(!canEditEvent(e)){
-    return showToast("본인 일정만 수정 가능");
-}
-        state.editId = e.id;
-
-        document.getElementById('eventTitle').value = e.title;
-
-        document.getElementById('eventTime').value = e.time || "";
-
-        document.getElementById('eventInitialMemo').value = e.memo || "";
-
-        document.getElementById('editModal').style.display = "flex";
+            chatSidebar.classList.add("chat-open");
+        }
     };
+}
+
+/* =========================
+   EDIT OPEN
+========================= */
+
+window.editEvent = function(e){
+
+    if(!canEditEvent(e)){
+        return showToast("본인 일정만 수정 가능");
+    }
+
+    state.selectedDateStr = e.date;
+
+    state.editId = e.id;
+
+    document.getElementById('eventTitle').value = e.title;
+
+    document.getElementById('eventTime').value = e.time || "";
+
+    document.getElementById('eventInitialMemo').value = e.memo || "";
+
+    document.getElementById('editModal').style.display = "flex";
+};
 
     /* =========================
        DELETE
@@ -1573,10 +1584,10 @@ async ()=>{
 
 function listenChat(){
 
-    if(!state.currentUser) return; // ⭐ 추가
+    if(!state.currentUser) return;
 
     if(chatUnsub){
-        chatUnsub(); // 기존 리스너 제거
+        chatUnsub();
     }
 
     const q = query(
@@ -1589,6 +1600,36 @@ function listenChat(){
 
         chatMessages.innerHTML = "";
 
+        /* =========================
+           최신 메시지 알림 체크
+        ========================= */
+
+        const docs = snapshot.docs;
+
+        if(docs.length > 0){
+
+            const latestDoc =
+                docs[docs.length - 1];
+
+            const latestData =
+                latestDoc.data();
+
+            if(
+                !isFirstChatLoad &&
+                lastMessageId &&
+                lastMessageId !== latestDoc.id &&
+                latestData.userUid !== state.currentUser?.uid
+            ){
+                showToast("💬 새 메시지 도착");
+            }
+
+            lastMessageId = latestDoc.id;
+        }
+
+        /* =========================
+           메시지 렌더링
+        ========================= */
+
         snapshot.forEach(doc => {
 
             const m = doc.data();
@@ -1598,34 +1639,56 @@ function listenChat(){
                 m.userUid === state.currentUser.uid;
 
             const time = m.createdAt?.toDate
-                ? m.createdAt.toDate().toLocaleString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})
+                ? m.createdAt.toDate().toLocaleString(
+                    "ko-KR",
+                    {
+                        month:"2-digit",
+                        day:"2-digit",
+                        hour:"2-digit",
+                        minute:"2-digit"
+                    }
+                )
                 : "";
 
             const div = document.createElement("div");
 
-div.className = `chat-item ${isMine ? "chat-right" : "chat-left"}`;
+            div.className =
+                `chat-item ${isMine ? "chat-right" : "chat-left"}`;
 
-div.innerHTML = `
-    <div class="chat-box">
-        <div class="chat-meta">
-            <span>${m.userName}</span>
-            <span class="chat-time">${time}</span>
-        </div>
+            div.innerHTML = `
+                <div class="chat-box">
 
-        <div class="chat-bubble"
-             style="
-                background:${m.userColor};
-                color:white;
-             ">
-            ${m.text}
-        </div>
-    </div>
-`;
+                    <div class="chat-meta">
+
+                        <span>${m.userName}</span>
+
+                        <span class="chat-time">
+                            ${time}
+                        </span>
+
+                    </div>
+
+                    <div class="chat-bubble"
+                         style="
+                            background:${m.userColor};
+                            color:white;
+                         ">
+
+                        ${m.text}
+
+                    </div>
+
+                </div>
+            `;
 
             chatMessages.appendChild(div);
         });
 
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        /* 최초 로딩 끝 */
+        isFirstChatLoad = false;
+
+        chatMessages.scrollTop =
+            chatMessages.scrollHeight;
     });
 }
 
