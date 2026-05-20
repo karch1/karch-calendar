@@ -9,14 +9,14 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // 페치 이벤트 (필요 시 캐싱 로직 추가 가능)
+  // 페치 이벤트
 });
 
 /* ========================================================
-   1. FIRESTORE 백그라운드 일정 알림 (상시 감시 로직 추가)
+   1. FIRESTORE 백그라운드 일정 알림 + 채팅 봇 등록
 ======================================================== */
 importScripts('https://www.gstatic.com/firebasejs/12.13.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore-compat.js'); // 생성용 추가
+importScripts('https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.13.0/firebase-messaging-compat.js');
 
 const firebaseConfig = {
@@ -36,7 +36,7 @@ const messaging = firebase.messaging();
 
 let bgNotifiedSchedules = new Set();
 
-// 20초마다 백그라운드에서 Firestore 일정을 체크합니다. (브라우저가 살아있는 한 꺼져도 작동)
+// 20초마다 백그라운드에서 Firestore 일정을 체크합니다.
 setInterval(async () => {
   try {
     const now = new Date();
@@ -49,20 +49,27 @@ setInterval(async () => {
       const eventTime = new Date(`${e.date}T${e.time}:00`);
       const diff = eventTime - now;
 
-      // 5분 전 알림 (시간 오차 감안하여 10초 여유 확보)
+      // 5분 전 알림
       if (diff > 0 && diff <= 5 * 60 * 1000 && diff > 4 * 60 * 1000 + 40000) {
         const key = doc.id + "_5min";
         if (!bgNotifiedSchedules.has(key)) {
           bgNotifiedSchedules.add(key);
+          
+          const msg = `📢 [일정 알림] 5분 뒤 "${e.title}" 일정이 시작됩니다.`;
           showBgNotification(`📅 5분 전 알림`, e.title);
+          sendBotMessageToChat(msg); // ◀ 채팅방에 봇 메시지 추가
         }
       }
+      
       // 정시 알림
       if (diff >= -10000 && diff <= 10000) {
         const key = doc.id + "_now";
         if (!bgNotifiedSchedules.has(key)) {
           bgNotifiedSchedules.add(key);
+          
+          const msg = `📢 [일정 시작] 지금 "${e.title}" 일정이 시작되었습니다!`;
           showBgNotification(`📅 지금 시작 알림`, e.title);
+          sendBotMessageToChat(msg); // ◀ 채팅방에 봇 메시지 추가
         }
       }
     });
@@ -70,6 +77,23 @@ setInterval(async () => {
     console.error("백그라운드 스케줄러 에러:", err);
   }
 }, 20000);
+
+// [핵심 추가] 실제 채팅 DB에 시스템 봇 이름으로 메시지를 꼽아넣는 함수
+async function sendBotMessageToChat(messageText) {
+  try {
+    // 'chats' 부분은 실제 사용하시는 채팅 컬렉션 이름으로 매칭해주세요.
+    await db.collection("messages").add({
+      text: messageText,
+      userName: "시스템 봇",
+      userUid: "system-bot",
+      userColor: "#10b981",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp() // 파이어베이스 서버 타임스탬프
+    });
+    console.log("시스템 봇 채팅 등록 성공:", messageText);
+  } catch (error) {
+    console.error("시스템 봇 채팅 등록 실패:", error);
+  }
+}
 
 function showBgNotification(title, body) {
   self.registration.showNotification(title, {
