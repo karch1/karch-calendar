@@ -697,26 +697,33 @@
       modal.style.display = "flex";
     };
 
-    /* ========================= CHAT CODE ========================= */
-    const chatMessages = document.getElementById("chatMessages");
-    const chatInput = document.getElementById("chatInput");
+  
+/* ========================= CHAT CODE ========================= */
+const chatMessages = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
 
-    chatInput.addEventListener("keydown", (e) => {
-      if (e.isComposing) return;
-      if (e.key === "Enter") {
-        e.preventDefault();
-        document.getElementById("sendChatBtn").click();
-      }
-    });
+chatInput.addEventListener("keydown", (e) => {
 
-  /* SEND CHAT */
+  if (e.isComposing) return;
+
+  if (e.key === "Enter") {
+
+    e.preventDefault();
+
+    document.getElementById("sendChatBtn").click();
+  }
+});
+
+/* ========================= SEND CHAT ========================= */
 document.getElementById("sendChatBtn").onclick = async () => {
 
   if (!state.currentUser) {
+
     return showToast("로그인 필요");
   }
 
   const text = chatInput.value.trim();
+
   if (!text) return;
 
   /* ========================= !오늘 COMMAND ========================= */
@@ -752,11 +759,12 @@ document.getElementById("sendChatBtn").onclick = async () => {
 💡 필터 켜놓은 놈만 보여준다이가`;
 
     await addDoc(collection(db, "messages"), {
+
       text: message,
       userName: "안건전지 봇",
       userColor: "#10b981",
       userUid: "system-bot",
-      createdAt: new Date()
+      createdAt: serverTimestamp()
     });
 
     return;
@@ -764,26 +772,20 @@ document.getElementById("sendChatBtn").onclick = async () => {
 
   /* ========================= NORMAL CHAT ========================= */
   await addDoc(collection(db, "messages"), {
+
     text,
     userName: state.currentUser.name,
     userColor: state.currentUser.color,
     userUid: state.currentUser.uid,
-    createdAt: new Date()
+    createdAt: serverTimestamp()
   });
 
-  chatInput.value = "";
-};
+  /* ========================= MESSAGE LIMIT ========================= */
+  const q = query(
+    collection(db, "messages"),
+    orderBy("createdAt", "asc")
+  );
 
-  /* ========================= NORMAL CHAT ========================= */
-  await addDoc(collection(db, "messages"), {
-    text,
-    userName: state.currentUser.name,
-    userColor: state.currentUser.color,
-    userUid: state.currentUser.uid,
-    createdAt: new Date()
-  });
-
-  const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
   const snap = await getDocs(q);
 
   if (snap.size > 100) {
@@ -804,166 +806,275 @@ document.getElementById("sendChatBtn").onclick = async () => {
 
   chatInput.value = "";
 };
-    /* LISTEN CHAT */
-    function listenChat() {
-      if (!state.currentUser) return;
-      if (chatUnsub) chatUnsub();
 
-      const q = query(collection(db, "messages"), orderBy("createdAt"), limit(100));
-      chatUnsub = onSnapshot(q, (snapshot) => {
-        chatMessages.innerHTML = "";
-        const docs = snapshot.docs;
+/* ========================= LISTEN CHAT ========================= */
+function listenChat() {
 
-        if (docs.length > 0) {
-          const latestDoc = docs[docs.length - 1];
-          const latestData = latestDoc.data();
+  if (!state.currentUser) return;
 
-          if (!isFirstChatLoad && lastMessageId && lastMessageId !== latestDoc.id && latestData.userUid !== state.currentUser?.uid) {
-            showToast("💬 새 메시지 도착");
-            if (Notification.permission === "granted") {
-              navigator.serviceWorker.getRegistration().then(reg => {
-                if (reg) {
-                  reg.showNotification("새 메시지", {
-                    body: `${latestData.userName}: ${latestData.text}`,
-                    icon: "./icon-192.png",
-                    badge: "./icon-192.png",
-                    tag: "chat-message",
-                    renotify: false
-                  });
-                }
+  if (chatUnsub) chatUnsub();
+
+  const q = query(
+    collection(db, "messages"),
+    orderBy("createdAt"),
+    limit(100)
+  );
+
+  chatUnsub = onSnapshot(q, (snapshot) => {
+
+    chatMessages.innerHTML = "";
+
+    const docs = snapshot.docs;
+
+    if (docs.length > 0) {
+
+      const latestDoc = docs[docs.length - 1];
+
+      const latestData = latestDoc.data();
+
+      if (
+        !isFirstChatLoad &&
+        lastMessageId &&
+        lastMessageId !== latestDoc.id &&
+        latestData.userUid !== state.currentUser?.uid
+      ) {
+
+        showToast("💬 새 메시지 도착");
+
+        if (Notification.permission === "granted") {
+
+          navigator.serviceWorker.getRegistration().then(reg => {
+
+            if (reg) {
+
+              reg.showNotification("새 메시지", {
+
+                body: `${latestData.userName}: ${latestData.text}`,
+                icon: "./icon-192.png",
+                badge: "./icon-192.png",
+                tag: "chat-message",
+                renotify: false
               });
             }
-          }
-          lastMessageId = latestDoc.id;
+          });
         }
+      }
 
-        snapshot.forEach(doc => {
-          const m = doc.data();
-          
-          // 시스템 봇이거나 유저가 입력한 텍스트 렌더링 핸들링
-          const isBot = m.userUid === "system-bot";
-          const isMe = m.userUid === state.currentUser?.uid && !isBot;
-          
-          // 실시간 저장 처리 중 createdAt이 순간 null일 수 있으므로 현재 로컬 시간으로 백업 처리
-          const dateObj = m.createdAt ? m.createdAt.toDate() : new Date();
-          const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          
-          const item = document.createElement("div");
-          
-          if (isBot) {
+      lastMessageId = latestDoc.id;
+    }
 
-  item.className = "chat-item chat-center";
+    snapshot.forEach(docSnap => {
 
-  item.innerHTML = `
-    <div style="
-      font-size:11px;
-      font-weight:800;
-      color:${m.userColor || '#10b981'};
-      margin-bottom:4px;
-    ">
-      ${m.userName}
-    </div>
+      const m = docSnap.data();
 
-    <div class="bot-bubble mx-auto"
-         style="border-left:4px solid ${m.userColor || '#4f46e5'}">
+      const isBot = m.userUid === "system-bot";
 
-      ${m.text.replaceAll('\n', '<br>')}
-    </div>
-  `;
-}
-          } else {
-            // 일반 사용자 메시지 UI 디자인
-            item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
-            item.innerHTML = `
-              <div class="chat-box">
-                ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
-                <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
-                  <div class="chat-bubble" style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">${m.text}</div>
-                  <span class="chat-time">${timeStr}</span>
-                </div>
+      const isMe =
+        m.userUid === state.currentUser?.uid &&
+        !isBot;
+
+      const dateObj = m.createdAt
+        ? m.createdAt.toDate()
+        : new Date();
+
+      const timeStr = dateObj.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+
+      const item = document.createElement("div");
+
+      if (isBot) {
+
+        item.className = "chat-item chat-center";
+
+        item.innerHTML = `
+          <div>
+            <div style="
+              font-size:11px;
+              font-weight:800;
+              color:${m.userColor || '#10b981'};
+              margin-bottom:4px;
+            ">
+              ${m.userName}
+            </div>
+
+            <div class="bot-bubble mx-auto"
+                 style="border-left:4px solid ${m.userColor || '#4f46e5'}">
+
+              ${m.text.replaceAll('\n', '<br>')}
+            </div>
+          </div>
+        `;
+
+      } else {
+
+        item.className =
+          `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
+
+        item.innerHTML = `
+          <div class="chat-box">
+
+            ${!isMe
+              ? `<div class="chat-meta"
+                     style="color:${m.userColor}">
+                     ${m.userName}
+                 </div>`
+              : ''
+            }
+
+            <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
+
+              <div class="chat-bubble"
+                   style="
+                     background:${isMe ? '#4f46e5' : '#e5e7eb'};
+                     color:${isMe ? '#fff' : '#111'}
+                   ">
+
+                ${m.text}
               </div>
-            `;
-          }
-          chatMessages.appendChild(item);
-        });
-        
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        isFirstChatLoad = false;
-      });
-    }
 
-    /* ========================= SERVICE WORKER ========================= */
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./service-worker.js")
-        .then(async (reg) => {
-          console.log("SW REGISTER SUCCESS");
-          const permission = await Notification.requestPermission();
-          if (permission === "granted") {
-            console.log("알림 허용");
-            const token = await getToken(messaging, {
-              vapidKey: "BCeAQRVjha5xrFLqCwMPLowkMd7cYsjpBU-s9nQmVftHf3QScivat1NtNvLpJMUEmxUJfALTBfa7XAU3KKVwBiM",
-              serviceWorkerRegistration: reg
-            });
-            console.log("FCM TOKEN", token);
-          } else {
-            console.log("알림 거부");
-          }
-        })
-        .catch((err) => {
-          console.log("SW FAIL", err);
-        });
-    }
+              <span class="chat-time">
+                ${timeStr}
+              </span>
 
-    /* ========================= SCHEDULE NOTIFIER ========================= */
-    function startScheduleNotifier() {
-      if (scheduleTimer) clearInterval(scheduleTimer);
-      
-      scheduleTimer = setInterval(() => {
-        if (!state.currentUser) return;
-        const now = new Date();
-        
-        state.events.forEach(e => {
-          if (!e.date || !e.time) return;
-          const eventTime = new Date(`${e.date}T${e.time}:00`);
-          const diff = eventTime - now;
+            </div>
+          </div>
+        `;
+      }
 
-          if (diff > 0 && diff <= 5 * 60 * 1000) {
-            const key = e.id + "_5min";
-            if (notifiedSchedules.has(key)) return;
-            notifiedSchedules.add(key);
-            triggerScheduleNotification(e, "5분 전");
-          }
-          if (diff > 0 && diff <= 1000) {
-            const key = e.id + "_now";
-            if (notifiedSchedules.has(key)) return;
-            notifiedSchedules.add(key);
-            triggerScheduleNotification(e, "지금 시작");
-          }
-        });
-      }, 10000);
-    }
+      chatMessages.appendChild(item);
 
-    /* ========================= NOTIFICATION CORE ========================= */
-    function triggerScheduleNotification(event, label) {
-      showToast(`📅 ${label}`);
-      if (Notification.permission !== "granted") return;
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (!reg) return;
-        reg.showNotification("📅 일정 알림", {
-          body: `${label}\n${event.title}`,
-          icon: "./icon-192.png",
-          badge: "./icon-192.png",
-          tag: "schedule-" + event.id,
-          renotify: false
-        });
-      });
-    }
-
-    /* ========================= FOREGROUND NOTIFICATION ========================= */
-    onMessage(messaging, (payload) => {
-      console.log("포그라운드 알림", payload);
-      showToast(payload.notification.title);
     });
+
+    chatMessages.scrollTop =
+      chatMessages.scrollHeight;
+
+    isFirstChatLoad = false;
+  });
+}
+
+/* ========================= SERVICE WORKER ========================= */
+if ("serviceWorker" in navigator) {
+
+  navigator.serviceWorker.register("./service-worker.js")
+
+    .then(async (reg) => {
+
+      console.log("SW REGISTER SUCCESS");
+
+      const permission =
+        await Notification.requestPermission();
+
+      if (permission === "granted") {
+
+        console.log("알림 허용");
+
+        const token = await getToken(messaging, {
+
+          vapidKey:
+          "BCeAQRVjha5xrFLqCwMPLowkMd7cYsjpBU-s9nQmVftHf3QScivat1NtNvLpJMUEmxUJfALTBfa7XAU3KKVwBiM",
+
+          serviceWorkerRegistration: reg
+        });
+
+        console.log("FCM TOKEN", token);
+
+      } else {
+
+        console.log("알림 거부");
+      }
+    })
+
+    .catch((err) => {
+
+      console.log("SW FAIL", err);
+    });
+}
+
+/* ========================= SCHEDULE NOTIFIER ========================= */
+function startScheduleNotifier() {
+
+  if (scheduleTimer)
+    clearInterval(scheduleTimer);
+
+  scheduleTimer = setInterval(() => {
+
+    if (!state.currentUser) return;
+
+    const now = new Date();
+
+    state.events.forEach(e => {
+
+      if (!e.date || !e.time) return;
+
+      const eventTime =
+        new Date(`${e.date}T${e.time}:00`);
+
+      const diff = eventTime - now;
+
+      if (diff > 0 && diff <= 5 * 60 * 1000) {
+
+        const key = e.id + "_5min";
+
+        if (notifiedSchedules.has(key)) return;
+
+        notifiedSchedules.add(key);
+
+        triggerScheduleNotification(e, "5분 전");
+      }
+
+      if (diff > 0 && diff <= 1000) {
+
+        const key = e.id + "_now";
+
+        if (notifiedSchedules.has(key)) return;
+
+        notifiedSchedules.add(key);
+
+        triggerScheduleNotification(e, "지금 시작");
+      }
+    });
+
+  }, 10000);
+}
+
+/* ========================= NOTIFICATION CORE ========================= */
+function triggerScheduleNotification(event, label) {
+
+  showToast(`📅 ${label}`);
+
+  if (Notification.permission !== "granted")
+    return;
+
+  navigator.serviceWorker
+    .getRegistration()
+    .then(reg => {
+
+      if (!reg) return;
+
+      reg.showNotification("📅 일정 알림", {
+
+        body: `${label}\n${event.title}`,
+        icon: "./icon-192.png",
+        badge: "./icon-192.png",
+        tag: "schedule-" + event.id,
+        renotify: false
+      });
+    });
+}
+
+/* ========================= FOREGROUND NOTIFICATION ========================= */
+onMessage(messaging, (payload) => {
+
+  console.log("포그라운드 알림", payload);
+
+  if (payload?.notification?.title) {
+
+    showToast(payload.notification.title);
+  }
+});
+
   </script>
 </body>
 </html>
