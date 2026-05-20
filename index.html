@@ -732,7 +732,7 @@ document.getElementById("sendChatBtn").onclick = async () => {
     );
 
     let message =
-`🤖 오늘의 스케줄 브리핑 (${todayStr})
+`🤖 일정받아라 (${todayStr})
 ────────────────`;
 
     if (todayEvents.length === 0) {
@@ -756,7 +756,7 @@ document.getElementById("sendChatBtn").onclick = async () => {
       userName: "안건전지 봇",
       userColor: "#10b981",
       userUid: "system-bot",
-      createdAt: serverTimestamp()
+      createdAt: new Date()
     });
 
     return;
@@ -768,7 +768,7 @@ document.getElementById("sendChatBtn").onclick = async () => {
     userName: state.currentUser.name,
     userColor: state.currentUser.color,
     userUid: state.currentUser.uid,
-    createdAt: serverTimestamp()
+    createdAt: new Date()
   });
 
   const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
@@ -839,13 +839,26 @@ document.getElementById("sendChatBtn").onclick = async () => {
           const item = document.createElement("div");
           
           if (isBot) {
-            // 시스템 봇 알림 UI 디자인 (중앙 정렬 배너 스타일)
-            item.className = "chat-item chat-center";
-            item.innerHTML = `
-              <div class="bot-bubble mx-auto" style="border-left: 4px solid ${m.userColor || '#4f46e5'}">
-                ${m.text.replaceAll('\n', '<br>')}
-              </div>
-            `;
+
+  item.className = "chat-item chat-center";
+
+  item.innerHTML = `
+    <div style="
+      font-size:11px;
+      font-weight:800;
+      color:${m.userColor || '#10b981'};
+      margin-bottom:4px;
+    ">
+      ${m.userName}
+    </div>
+
+    <div class="bot-bubble mx-auto"
+         style="border-left:4px solid ${m.userColor || '#4f46e5'}">
+
+      ${m.text.replaceAll('\n', '<br>')}
+    </div>
+  `;
+}
           } else {
             // 일반 사용자 메시지 UI 디자인
             item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
