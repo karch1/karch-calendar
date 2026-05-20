@@ -328,7 +328,7 @@
       "ssang9764@gmail.com": { name: "생마", color: "#38bdf8" },
       "cksgml0@naver.com": { name: "연막", color: "#8b5e3c" },
       "ahn7770@gmail.com": { name: "안크", color: "#ef4444" },
-      "huigi@email.com": { name: "희기", color: "#f97316" }
+      "friend4@gmail.com": { name: "희기", color: "#f97316" }
     };
 
     Object.keys(userColorMap).forEach(email => {
@@ -739,12 +739,12 @@
       chatInput.value = "";
     };
 
-    /* LISTEN CHAT */
+    /* LISTEN CHAT (타임스탬프 누락 우회 및 안전 렌더링 보정 버전) */
     function listenChat() {
       if (!state.currentUser) return;
       if (chatUnsub) chatUnsub();
 
-      const q = query(collection(db, "messages"), orderBy("createdAt"), limit(100));
+      const q = query(collection(db, "messages"), orderBy("createdAt", "asc"), limit(100));
       chatUnsub = onSnapshot(q, (snapshot) => {
         chatMessages.innerHTML = "";
         const docs = snapshot.docs;
@@ -775,26 +775,23 @@
         snapshot.forEach(doc => {
           const m = doc.data();
           
-          // 시스템 봇이거나 유저가 입력한 텍스트 렌더링 핸들링
           const isBot = m.userUid === "system-bot";
           const isMe = m.userUid === state.currentUser?.uid && !isBot;
           
-          // 실시간 저장 처리 중 createdAt이 순간 null일 수 있으므로 현재 로컬 시간으로 백업 처리
+          // 핵심 해결책: createdAt이 누락(null)인 임시 데이터 상태여도 빈 칸 대신 현재 시간으로 유연하게 백업
           const dateObj = m.createdAt ? m.createdAt.toDate() : new Date();
           const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
           
           const item = document.createElement("div");
           
           if (isBot) {
-            // 시스템 봇 알림 UI 디자인 (중앙 정렬 배너 스타일)
-            item.className = "chat-item chat-center";
+            item.className = "chat-item chat-center w-full";
             item.innerHTML = `
               <div class="bot-bubble mx-auto" style="border-left: 4px solid ${m.userColor || '#4f46e5'}">
                 ${m.text.replaceAll('\n', '<br>')}
               </div>
             `;
           } else {
-            // 일반 사용자 메시지 UI 디자인
             item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
             item.innerHTML = `
               <div class="chat-box">
