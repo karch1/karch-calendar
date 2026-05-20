@@ -745,7 +745,7 @@ document.getElementById("sendChatBtn").onclick = async () => {
       });
     }
 
-    message += `\n────────────────\n💡 필터 켜놓은 놈만 보여준다이가`;
+    message += `\n────────────────\n💡 필터 켜놓은 놈만 보여준다`;
 
     await addDoc(collection(db, "messages"), {
       text: message,
