@@ -725,66 +725,62 @@
       chatInput.value = "";
     };
 
-    /* LISTEN CHAT */
     function listenChat() {
-      if (!state.currentUser) return;
-      if (chatUnsub) chatUnsub();
+  if (!state.currentUser) return;
+  if (chatUnsub) chatUnsub();
 
-      const q = query(collection(db, "messages"), orderBy("createdAt"), limit(100));
-      chatUnsub = onSnapshot(q, (snapshot) => {
-        chatMessages.innerHTML = "";
-        const docs = snapshot.docs;
+  const q = query(
+    collection(db, "messages"),
+    orderBy("createdAt"),
+    limit(100)
+  );
 
-        if (docs.length > 0) {
-          const latestDoc = docs[docs.length - 1];
-          const latestData = latestDoc.data();
+  chatUnsub = onSnapshot(q, (snapshot) => {
 
-          if (!isFirstChatLoad && lastMessageId && lastMessageId !== latestDoc.id && latestData.userUid !== state.currentUser?.uid) {
-            showToast("💬 새 메시지 도착");
-            if (Notification.permission === "granted") {
-              navigator.serviceWorker.getRegistration().then(reg => {
-                if (reg) {
-                  reg.showNotification("새 메시지", {
-                    body: `${latestData.userName}: ${latestData.text}`,
-                    icon: "./icon-192.png",
-                    badge: "./icon-192.png",
-                    tag: "chat-message",
-                    renotify: false
-                  });
-                }
-              });
-            }
-          }
-          lastMessageId = latestDoc.id;
-        }
+    snapshot.docChanges().forEach(change => {
 
-        /* 메시지 렌더링 루프 보완 */
-        snapshot.forEach(doc => {
-          const m = doc.data();
-          if(!m.createdAt) return;
-          
-          const isMe = m.userUid === state.currentUser?.uid;
-          const timeStr = m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "";
-          
-          const item = document.createElement("div");
-          item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
-          
-          item.innerHTML = `
-            <div class="chat-box">
-              ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
-              <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
-                <div class="chat-bubble" style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">${m.text}</div>
-                <span class="chat-time">${timeStr}</span>
+  if (change.type === "added") {
+
+    const m = change.doc.data();
+
+    if (!m.createdAt) return; // 👉 먼저 필터링
+
+    const isMe = state.currentUser
+      ? m.userUid === state.currentUser.uid
+      : false;
+    
+    const time = m.createdAt.toDate
+      ? m.createdAt.toDate()
+      : new Date(m.createdAt);
+
+    const timeStr = time.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+        
+        const item = document.createElement("div");
+        item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
+
+        item.innerHTML = `
+          <div class="chat-box">
+            ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
+            <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
+              <div class="chat-bubble"
+                   style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">
+                ${m.text}
               </div>
+              <span class="chat-time">${timeStr}</span>
             </div>
-          `;
-          chatMessages.appendChild(item);
-        });
+          </div>
+        `;
 
-        isFirstChatLoad = false;
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      });
-    }
+        chatMessages.appendChild(item);
+      }
+    });
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  });
+}
 
     /* ========================= SERVICE WORKER ========================= */
     if ("serviceWorker" in navigator) {
