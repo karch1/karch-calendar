@@ -758,17 +758,48 @@ if (text === "!오늘") {
   message += `\n────────────────
 💡 필터 켜놓은 놈만 보여준다이가`;
 
-  await addDoc(collection(db, "messages"), {
+   /* ========================= !오늘 COMMAND ========================= */
+if (text === "!오늘") {
 
+  chatInput.value = "";
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const todayEvents = state.events.filter(e =>
+    e.date === todayStr &&
+    state.visibleUsers[e.userEmail]
+  );
+
+  let message =
+`🤖 일정받아라 (${todayStr})
+────────────────`;
+
+  if (todayEvents.length === 0) {
+
+    message += `\n📭 오늘 일정은 없다이가`;
+
+  } else {
+
+    todayEvents.forEach(e => {
+
+      message += `\n👤 ${e.userName}: [${e.time || "-"}] ${e.title} 있데이`;
+
+    });
+  }
+
+  message += `\n────────────────
+💡 필터 켜놓은 놈만 보여준다이가`;
+
+  await addDoc(collection(db, "messages"), {
     text: message,
     userName: "안건전지 봇",
     userColor: "#10b981",
     userUid: "system-bot",
-    createdAt: new Date()
-
+    createdAt: serverTimestamp() 
   });
 
-  return;
+  
+  return; 
 }
 
   /* ========================= NORMAL CHAT ========================= */
