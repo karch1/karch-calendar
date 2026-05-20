@@ -237,7 +237,7 @@
       <div id="chatHeader"> 💬 팀 채팅 </div>
       <div id="chatMessages"></div>
       <div id="chatInputWrap">
-        <input id="chatInput" placeholder="메시지 입력">
+        <input id="chatInput" placeholder="메시지 입력 (명령어: !오늘, !근무)">
         <button id="sendChatBtn"> 전송 </button>
       </div>
     </aside>
@@ -466,10 +466,11 @@
     }
 
     /* ========================= EDIT EVENT OPEN ========================= */
-    window.editEvent = function (e) {
-      if (!canEditEvent(e)) {
-        return showToast("본인 일정만 수정 가능");
-      }
+    window.editEventById = function (id) {
+      const e = state.events.find(ev => ev.id === id);
+      if (!e) return;
+      if (!canEditEvent(e)) return showToast("본인 일정만 수정 가능");
+      
       state.selectedDateStr = e.date;
       state.editId = e.id;
       document.getElementById('eventTitle').value = e.title;
@@ -636,7 +637,7 @@
           bar.innerText = e.title;
           bar.onclick = (ev) => {
             ev.stopPropagation();
-            openEventDetail(e);
+            openEventDetail(e.id);
           };
           div.appendChild(bar);
         });
@@ -664,14 +665,16 @@
         const div = document.createElement('div');
         div.className = "p-3 bg-gray-100 rounded-xl cursor-pointer hover:bg-gray-200 transition text-left";
         div.innerHTML = `<b>${e.title}</b><br/><small>${e.time || ""}</small>`;
-        div.onclick = () => openEventDetail(e);
+        div.onclick = () => openEventDetail(e.id);
         list.appendChild(div);
       });
       modal.style.display = "flex";
     };
 
     /* ========================= DETAIL MODAL ========================= */
-    window.openEventDetail = function (e) {
+    window.openEventDetail = function (id) {
+      const e = state.events.find(ev => ev.id === id);
+      if (!e) return;
       state.selectedEvent = e;
       state.viewMode = "detail";
       const modal = document.getElementById('dayModal');
@@ -686,7 +689,7 @@
           <div class="mt-2 text-xs font-bold" style="color:${e.userColor};">작성자 : ${e.userName}</div>
           <div style="margin-top:12px;display:flex;gap:6px;">
             ${editable ? `
-              <button onclick='editEvent(${JSON.stringify(e).replaceAll('"', '&quot;')})' class="px-3 py-1 bg-indigo-500 text-white rounded font-bold text-xs">수정</button>
+              <button onclick="editEventById('${e.id}')" class="px-3 py-1 bg-indigo-500 text-white rounded font-bold text-xs">수정</button>
               <button onclick="deleteEvent('${e.id}')" class="px-3 py-1 bg-red-500 text-white rounded font-bold text-xs">삭제</button>
             ` : ''}
             <button onclick="openDayModal('${e.date}')" class="px-3 py-1 bg-gray-400 text-white rounded font-bold text-xs">목록</button>
@@ -708,7 +711,7 @@
       }
     });
 
-    /* SEND CHAT (실시간 연동을 위해 불필요한 getDocs 파트 삭제 및 최적화) */
+    /* SEND CHAT */
     document.getElementById("sendChatBtn").onclick = async () => {
       if (!state.currentUser) {
         return showToast("로그인 필요");
@@ -716,8 +719,9 @@
       const text = chatInput.value.trim();
       if (!text) return;
 
-      chatInput.value = ""; // 전송 즉시 인풋 비우기
+      chatInput.value = ""; 
 
+      // 1. 오리지널 메시지 전송
       await addDoc(collection(db, "messages"), {
         text,
         userName: state.currentUser.name,
@@ -725,9 +729,65 @@
         userUid: state.currentUser.uid,
         createdAt: serverTimestamp()
       });
+
+      // 2. 명령어 처리
+      if (text.startsWith("!")) {
+        const todayObj = new Date();
+        const yyyy = todayObj.getFullYear();
+        const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(todayObj.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+
+        if (text === "!오늘") {
+          const todays = state.events.filter(e => e.date === todayStr && state.visibleUsers[e.userEmail]);
+          todays.sort((a, b) => (a.time || "23:59").localeCompare(b.time || "23:59"));
+
+          let replyText = `🤖 **오늘의 스케줄 브리핑 (${parseInt(mm)}월 ${parseInt(dd)}일)**\n────────────────\n`;
+          if (todays.length === 0) {
+            replyText += "조회된 오늘 팀 일정이 없습니다.";
+          } else {
+            todays.forEach(e => {
+              const timeDisplay = e.time ? `[${e.time}] ` : '';
+              replyText += `👤 **${e.userName}**: ${timeDisplay}${e.title}\n`;
+            });
+          }
+          replyText += "\n────────────────\n💡 필터에서 켜진 사용자의 일정만 브리핑됩니다.";
+
+          await addDoc(collection(db, "messages"), {
+            text: replyText,
+            userName: "시스템 봇",
+            userColor: "#4f46e5",
+            userUid: "system-bot",
+            createdAt: serverTimestamp()
+          });
+
+        } else if (text === "!근무") {
+          const shift = getShiftLabel(todayStr);
+          let replyText = `🤖 **오늘의 공통 근무 유형 안내**\n────────────────\n`;
+          if (shift) {
+            replyText += `오늘 지정된 근무 패턴은 **[${shift}]** 입니다.\n\n`;
+            if (shift === "휴") {
+              replyText += "오늘은 달콤한 휴무일입니다! 편안한 하루 되세요. ☕";
+            } else {
+              replyText += `오늘 **${shift}** 조 분들 모두 고생 많으십니다. 화이팅! 🔥`;
+            }
+          } else {
+            replyText += "오늘 날짜에 매칭된 패턴 기준점이 없습니다.";
+          }
+          replyText += "\n────────────────";
+
+          await addDoc(collection(db, "messages"), {
+            text: replyText,
+            userName: "시스템 봇",
+            userColor: "#f59e0b",
+            userUid: "system-bot",
+            createdAt: serverTimestamp()
+          });
+        }
+      }
     };
 
-    /* LISTEN CHAT (로그인 상태와 무관하게 앱 시작과 동시에 무조건 상시 감시하도록 밖으로 이동) */
+    /* LISTEN CHAT */
     function listenChat() {
       if (chatUnsub) chatUnsub();
 
@@ -797,7 +857,6 @@
       });
     }
 
-    // 앱 구동 시 무조건 최초 1회 채팅 실시간 리스너 실행 
     listenChat();
 
     /* ========================= SERVICE WORKER ========================= */
