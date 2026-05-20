@@ -12,6 +12,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    
     body {
       font-family: 'Inter', sans-serif;
       background: #f3f4f6;
@@ -99,6 +100,7 @@
     }
     #userSidebar { transition: 0.3s; }
     #sidebarToggle { display: none; }
+    
     @media (min-width: 769px) {
       #userSidebar { transform: translateX(0); }
     }
@@ -109,6 +111,7 @@
       #userSidebar.active { transform: translateX(0); }
       #sidebarToggle { display: block; }
     }
+    
     .app-layout {
       display: flex;
       gap: 16px;
@@ -163,6 +166,7 @@
       cursor: pointer;
     }
     #mobileChatToggle { display: none; }
+    
     @media (max-width: 1200px) {
       #mobileChatToggle {
         display: flex;
@@ -197,6 +201,7 @@
       #chatSidebar.chat-open { transform: translateY(0); }
       .app-layout { flex-direction: column; }
     }
+    
     .chat-item { display: flex; margin-bottom: 12px; }
     .chat-left { justify-content: flex-start; }
     .chat-right { justify-content: flex-end; }
@@ -210,29 +215,22 @@
 
   <button id="sidebarToggle" class="fixed left-2 top-2 z-[999] btn btn-gray"> ☰ </button>
 
-  <!-- APP LAYOUT -->
   <div class="app-layout">
-    <!-- CALENDAR -->
     <div class="calendar-container">
-      <!-- HEADER -->
       <header class="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <!-- LEFT -->
         <div class="flex items-center gap-2">
           <button onclick="prevMonth()" class="btn btn-gray"> ◀ </button>
           <h1 id="monthDisplay" class="text-xl font-extrabold min-w-[140px] text-center"> 로딩중... </h1>
           <button onclick="nextMonth()" class="btn btn-gray"> ▶ </button>
         </div>
-        <!-- RIGHT -->
         <div class="flex flex-row gap-2">
           <button id="loginBtn" onclick="loginGoogle()" class="btn btn-blue"> 로그인 </button>
           <button id="logoutBtn" onclick="logoutGoogle()" class="btn btn-red" style="display:none;"> 로그아웃 </button>
         </div>
       </header>
-      <!-- CALENDAR GRID -->
       <div id="calendar" class="calendar-grid"></div>
     </div>
 
-    <!-- CHAT SIDEBAR -->
     <aside id="chatSidebar" class="chat-closed">
       <div id="chatHeader"> 💬 팀 채팅 </div>
       <div id="chatMessages"></div>
@@ -243,31 +241,28 @@
     </aside>
   </div>
 
-  <!-- DAY / DETAIL 통합 모달 -->
   <div id="dayModal" class="modal-overlay" onclick="closeModal('dayModal')">
     <div class="modal-content" onclick="event.stopPropagation()">
       <h2 id="modalDateTitle" class="text-lg font-bold mb-3"> 날짜 </h2>
       <div id="modalEventList" class="flex flex-col gap-2"></div>
-      <hr style="margin:15px 0;">
-      <button onclick="openAddForm()" class="btn btn-blue" style="width:100%;"> + 일정 추가 </button>
-      <button onclick="closeModal('dayModal')" class="btn btn-gray" style="width:100%; margin-top:10px;"> 닫기 </button>
+      <hr class="my-4">
+      <button onclick="openAddForm()" class="btn btn-blue w-full"> + 일정 추가 </button>
+      <button onclick="closeModal('dayModal')" class="btn btn-gray w-full mt-2"> 닫기 </button>
     </div>
   </div>
 
-  <!-- ADD / EDIT 모달 -->
   <div id="editModal" class="modal-overlay" onclick="closeModal('editModal')">
     <div class="modal-content" onclick="event.stopPropagation()">
       <h2 class="text-lg font-bold mb-3"> 📅 일정 작성 </h2>
-      <input id="eventTitle" placeholder="제목" style="width:100%;padding:10px;margin:5px 0; border:1px solid #e5e7eb; border-radius:8px;">
-      <input id="eventTime" type="time" style="width:100%;padding:10px;margin:5px 0; border:1px solid #e5e7eb; border-radius:8px;">
-      <textarea id="eventInitialMemo" placeholder="메모" style="width:100%;padding:10px;margin:5px 0; border:1px solid #e5e7eb; border-radius:8px; height:100px;"></textarea>
+      <input id="eventTitle" placeholder="제목" class="w-full p-2.5 my-1.25 border border-gray-200 rounded-lg">
+      <input id="eventTime" type="time" class="w-full p-2.5 my-1.25 border border-gray-200 rounded-lg">
+      <textarea id="eventInitialMemo" placeholder="메모" class="w-full p-2.5 my-1.25 border border-gray-200 rounded-lg h-[100px]"></textarea>
       <input type="hidden" id="editId">
-      <button id="saveBtn" class="btn btn-blue" style="width:100%;"> 저장 </button>
-      <button onclick="closeModal('editModal')" class="btn btn-gray" style="width:100%;margin-top:10px;"> 닫기 </button>
+      <button id="saveBtn" class="btn btn-blue w-full"> 저장 </button>
+      <button onclick="closeModal('editModal')" class="btn btn-gray w-full mt-2"> 닫기 </button>
     </div>
   </div>
 
-  <!-- USER SIDEBAR -->
   <aside id="userSidebar" class="fixed left-2 top-24 bg-white shadow-lg rounded-xl p-3 w-44 text-xs font-bold z-50">
     <div class="mb-2 text-gray-500"> 👤 사용자 필터 </div>
     <div id="userFilterList"></div>
@@ -277,10 +272,8 @@
     </label>
   </aside>
 
-  <!-- TOAST -->
   <div id="toast"> 알림 </div>
 
-  <!-- MOBILE CHAT BUTTON -->
   <button id="mobileChatToggle"> 💬 </button>
 
   <script type="module">
@@ -522,16 +515,36 @@
         userName: state.currentUser.name
       };
 
+      const [year, month, day] = state.selectedDateStr.split('-');
+      const formattedDate = `${parseInt(month)}월 ${parseInt(day)}일`;
+      const timeDisplay = time ? `[${time}] ` : '';
+
       if (state.editId) {
         await updateDoc(doc(db, "events", state.editId), data);
         const idx = state.events.findIndex(e => e.id === state.editId);
         state.events[idx] = { ...state.events[idx], ...data };
         state.editId = null;
         showToast("수정 완료");
+
+        await addDoc(collection(db, "messages"), {
+          text: `📢 [일정 수정] ${formattedDate} ${timeDisplay}"${title}" 일정이 수정되었습니다.`,
+          userName: "시스템 봇",
+          userColor: "#10b981",
+          userUid: "system-bot",
+          createdAt: serverTimestamp()
+        });
       } else {
         const ref = await addDoc(collection(db, "events"), data);
         state.events.push({ id: ref.id, ...data });
         showToast("저장 완료");
+
+        await addDoc(collection(db, "messages"), {
+          text: `📅 [일정 등록] ${formattedDate} ${timeDisplay}"${title}" 일정을 등록했습니다!`,
+          userName: "시스템 봇",
+          userColor: "#4f46e5",
+          userUid: "system-bot",
+          createdAt: serverTimestamp()
+        });
       }
       renderCalendar();
       closeModal('editModal');
@@ -710,7 +723,6 @@
         createdAt: serverTimestamp()
       });
 
-      /* 100개 초과 삭제 로직 */
       const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
       const snap = await getDocs(q);
       if (snap.size > 100) {
@@ -758,12 +770,11 @@
           lastMessageId = latestDoc.id;
         }
 
-        /* 메시지 렌더링 루프 보완 */
         snapshot.forEach(doc => {
           const m = doc.data();
           if(!m.createdAt) return;
           
-          const isMe = m.userUid === state.currentUser?.uid;
+          const isMe = m.userUid === state.currentUser?.uid && m.userUid !== "system-bot";
           const timeStr = m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "";
           
           const item = document.createElement("div");
@@ -780,9 +791,9 @@
           `;
           chatMessages.appendChild(item);
         });
-
-        isFirstChatLoad = false;
+        
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        isFirstChatLoad = false;
       });
     }
 
@@ -821,14 +832,12 @@
           const eventTime = new Date(`${e.date}T${e.time}:00`);
           const diff = eventTime - now;
 
-          // 5분 전 알림
           if (diff > 0 && diff <= 5 * 60 * 1000) {
             const key = e.id + "_5min";
             if (notifiedSchedules.has(key)) return;
             notifiedSchedules.add(key);
             triggerScheduleNotification(e, "5분 전");
           }
-          // 정시 알림
           if (diff > 0 && diff <= 1000) {
             const key = e.id + "_now";
             if (notifiedSchedules.has(key)) return;
