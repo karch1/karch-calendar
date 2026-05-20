@@ -237,7 +237,7 @@
       <div id="chatHeader"> 💬 팀 채팅 </div>
       <div id="chatMessages"></div>
       <div id="chatInputWrap">
-        <input id="chatInput" placeholder="메시지 입력 (명령어: !오늘, !근무)">
+        <input id="chatInput" placeholder="메시지 입력">
         <button id="sendChatBtn"> 전송 </button>
       </div>
     </aside>
@@ -328,7 +328,7 @@
       "ssang9764@gmail.com": { name: "생마", color: "#38bdf8" },
       "cksgml0@naver.com": { name: "연막", color: "#8b5e3c" },
       "ahn7770@gmail.com": { name: "안크", color: "#ef4444" },
-      "friend4@gmail.com": { name: "희기", color: "#f97316" }
+      "huigi@email.com": { name: "희기", color: "#f97316" }
     };
 
     Object.keys(userColorMap).forEach(email => {
@@ -383,49 +383,36 @@
       showToast("로그아웃 완료");
     };
 
-   /* ========================= AUTH STATE ========================= */
-onAuthStateChanged(auth, (user) => {
-  const loginBtn = document.getElementById("loginBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
-
-  // 로그 찍어보기 (이게 콘솔에 뜨는지 확인!)
-  console.log("Auth 상태 변경:", user ? user.email : "로그아웃");
-
-  if (user && userColorMap[user.email]) {
-    loginBtn.style.display = "none";
-    logoutBtn.style.display = "block";
-    const p = userColorMap[user.email];
-    state.currentUser = {
-      uid: user.uid,
-      email: user.email,
-      name: p.name,
-      color: p.color
-    };
-    loadEvents();
-    startScheduleNotifier();
-
-    console.log("채팅 리스너 실행 시도...");
-    listenChat();
-      
-  } else {
-    // 만약 user는 있는데 userColorMap에 이메일이 없으면 여기로 빠짐!
-    if (user) console.warn("사용자 이메일이 userColorMap에 없습니다:", user.email);
-    
-    loginBtn.style.display = "block";
-    logoutBtn.style.display = "none";
-    state.currentUser = null;
-    state.events = [];
-    if (scheduleTimer) {
-      clearInterval(scheduleTimer);
-      scheduleTimer = null;
-    }
-    notifiedSchedules.clear();
-    renderCalendar();
-    
-    // 로그아웃 시 채팅창 비우기
-    if (typeof chatMessages !== 'undefined') chatMessages.innerHTML = "";
-  }
-});
+    /* ========================= AUTH STATE ========================= */
+    onAuthStateChanged(auth, (user) => {
+      const loginBtn = document.getElementById("loginBtn");
+      const logoutBtn = document.getElementById("logoutBtn");
+      if (user && userColorMap[user.email]) {
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "block";
+        const p = userColorMap[user.email];
+        state.currentUser = {
+          uid: user.uid,
+          email: user.email,
+          name: p.name,
+          color: p.color
+        };
+        loadEvents();
+        listenChat();
+        startScheduleNotifier();
+      } else {
+        loginBtn.style.display = "block";
+        logoutBtn.style.display = "none";
+        state.currentUser = null;
+        state.events = [];
+        if (scheduleTimer) {
+          clearInterval(scheduleTimer);
+          scheduleTimer = null;
+        }
+        notifiedSchedules.clear();
+        renderCalendar();
+      }
+    });
 
     /* ========================= LOAD EVENTS ========================= */
     async function loadEvents() {
@@ -480,11 +467,10 @@ onAuthStateChanged(auth, (user) => {
     }
 
     /* ========================= EDIT EVENT OPEN ========================= */
-    window.editEventById = function (id) {
-      const e = state.events.find(ev => ev.id === id);
-      if (!e) return;
-      if (!canEditEvent(e)) return showToast("본인 일정만 수정 가능");
-      
+    window.editEvent = function (e) {
+      if (!canEditEvent(e)) {
+        return showToast("본인 일정만 수정 가능");
+      }
       state.selectedDateStr = e.date;
       state.editId = e.id;
       document.getElementById('eventTitle').value = e.title;
@@ -651,7 +637,7 @@ onAuthStateChanged(auth, (user) => {
           bar.innerText = e.title;
           bar.onclick = (ev) => {
             ev.stopPropagation();
-            openEventDetail(e.id);
+            openEventDetail(e);
           };
           div.appendChild(bar);
         });
@@ -679,16 +665,14 @@ onAuthStateChanged(auth, (user) => {
         const div = document.createElement('div');
         div.className = "p-3 bg-gray-100 rounded-xl cursor-pointer hover:bg-gray-200 transition text-left";
         div.innerHTML = `<b>${e.title}</b><br/><small>${e.time || ""}</small>`;
-        div.onclick = () => openEventDetail(e.id);
+        div.onclick = () => openEventDetail(e);
         list.appendChild(div);
       });
       modal.style.display = "flex";
     };
 
     /* ========================= DETAIL MODAL ========================= */
-    window.openEventDetail = function (id) {
-      const e = state.events.find(ev => ev.id === id);
-      if (!e) return;
+    window.openEventDetail = function (e) {
       state.selectedEvent = e;
       state.viewMode = "detail";
       const modal = document.getElementById('dayModal');
@@ -703,7 +687,7 @@ onAuthStateChanged(auth, (user) => {
           <div class="mt-2 text-xs font-bold" style="color:${e.userColor};">작성자 : ${e.userName}</div>
           <div style="margin-top:12px;display:flex;gap:6px;">
             ${editable ? `
-              <button onclick="editEventById('${e.id}')" class="px-3 py-1 bg-indigo-500 text-white rounded font-bold text-xs">수정</button>
+              <button onclick='editEvent(${JSON.stringify(e).replaceAll('"', '&quot;')})' class="px-3 py-1 bg-indigo-500 text-white rounded font-bold text-xs">수정</button>
               <button onclick="deleteEvent('${e.id}')" class="px-3 py-1 bg-red-500 text-white rounded font-bold text-xs">삭제</button>
             ` : ''}
             <button onclick="openDayModal('${e.date}')" class="px-3 py-1 bg-gray-400 text-white rounded font-bold text-xs">목록</button>
@@ -733,9 +717,6 @@ onAuthStateChanged(auth, (user) => {
       const text = chatInput.value.trim();
       if (!text) return;
 
-      chatInput.value = ""; 
-
-      // 1. 오리지널 메시지 전송
       await addDoc(collection(db, "messages"), {
         text,
         userName: state.currentUser.name,
@@ -744,75 +725,27 @@ onAuthStateChanged(auth, (user) => {
         createdAt: serverTimestamp()
       });
 
-      // 2. 명령어 처리
-      if (text.startsWith("!")) {
-        const todayObj = new Date();
-        const yyyy = todayObj.getFullYear();
-        const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(todayObj.getDate()).padStart(2, '0');
-        const todayStr = `${yyyy}-${mm}-${dd}`;
-
-        if (text === "!오늘") {
-          const todays = state.events.filter(e => e.date === todayStr && state.visibleUsers[e.userEmail]);
-          todays.sort((a, b) => (a.time || "23:59").localeCompare(b.time || "23:59"));
-
-          let replyText = `🤖 **오늘의 스케줄 브리핑 (${parseInt(mm)}월 ${parseInt(dd)}일)**\n────────────────\n`;
-          if (todays.length === 0) {
-            replyText += "조회된 오늘 팀 일정이 없습니다.";
-          } else {
-            todays.forEach(e => {
-              const timeDisplay = e.time ? `[${e.time}] ` : '';
-              replyText += `👤 **${e.userName}**: ${timeDisplay}${e.title}\n`;
-            });
-          }
-          replyText += "\n────────────────\n💡 필터에서 켜진 사용자의 일정만 브리핑됩니다.";
-
-          await addDoc(collection(db, "messages"), {
-            text: replyText,
-            userName: "시스템 봇",
-            userColor: "#4f46e5",
-            userUid: "system-bot",
-            createdAt: serverTimestamp()
-          });
-
-        } else if (text === "!근무") {
-          const shift = getShiftLabel(todayStr);
-          let replyText = `🤖 **오늘의 공통 근무 유형 안내**\n────────────────\n`;
-          if (shift) {
-            replyText += `오늘 지정된 근무 패턴은 **[${shift}]** 입니다.\n\n`;
-            if (shift === "휴") {
-              replyText += "오늘은 달콤한 휴무일입니다! 편안한 하루 되세요. ☕";
-            } else {
-              replyText += `오늘 **${shift}** 조 분들 모두 고생 많으십니다. 화이팅! 🔥`;
-            }
-          } else {
-            replyText += "오늘 날짜에 매칭된 패턴 기준점이 없습니다.";
-          }
-          replyText += "\n────────────────";
-
-          await addDoc(collection(db, "messages"), {
-            text: replyText,
-            userName: "시스템 봇",
-            userColor: "#f59e0b",
-            userUid: "system-bot",
-            createdAt: serverTimestamp()
-          });
+      const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
+      const snap = await getDocs(q);
+      if (snap.size > 100) {
+        const deleteCount = snap.size - 100;
+        const batch = writeBatch(db);
+        for (let i = 0; i < deleteCount; i++) {
+          const docRef = doc(db, "messages", snap.docs[i].id);
+          batch.delete(docRef);
         }
+        await batch.commit();
       }
+      chatInput.value = "";
     };
 
     /* LISTEN CHAT */
     function listenChat() {
+      if (!state.currentUser) return;
       if (chatUnsub) chatUnsub();
 
-      const q = query(
-  collection(db, "messages"),
-  orderBy("createdAt", "asc"),
-  limit(100)
-);
-      
-      // includeMetadataChanges를 추가해 서버 타임스탬프 동기화 딜레이 오류 해결
-      chatUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
+      const q = query(collection(db, "messages"), orderBy("createdAt"), limit(100));
+      chatUnsub = onSnapshot(q, (snapshot) => {
         chatMessages.innerHTML = "";
         const docs = snapshot.docs;
 
@@ -842,30 +775,26 @@ onAuthStateChanged(auth, (user) => {
         snapshot.forEach(doc => {
           const m = doc.data();
           
+          // 시스템 봇이거나 유저가 입력한 텍스트 렌더링 핸들링
           const isBot = m.userUid === "system-bot";
           const isMe = m.userUid === state.currentUser?.uid && !isBot;
           
-          // 전송 중(createdAt이 생기기 전 찰나의 순간) 데이터 튕김 예방
-          let timeStr = "전송중...";
-          if (m.createdAt) {
-            try {
-              const dateObj = m.createdAt.toDate();
-              timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            } catch(e) {
-              timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            }
-          }
+          // 실시간 저장 처리 중 createdAt이 순간 null일 수 있으므로 현재 로컬 시간으로 백업 처리
+          const dateObj = m.createdAt ? m.createdAt.toDate() : new Date();
+          const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
           
           const item = document.createElement("div");
           
           if (isBot) {
-            item.className = "chat-item chat-center w-full";
+            // 시스템 봇 알림 UI 디자인 (중앙 정렬 배너 스타일)
+            item.className = "chat-item chat-center";
             item.innerHTML = `
               <div class="bot-bubble mx-auto" style="border-left: 4px solid ${m.userColor || '#4f46e5'}">
                 ${m.text.replaceAll('\n', '<br>')}
               </div>
             `;
           } else {
+            // 일반 사용자 메시지 UI 디자인
             item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
             item.innerHTML = `
               <div class="chat-box">
@@ -884,8 +813,6 @@ onAuthStateChanged(auth, (user) => {
         isFirstChatLoad = false;
       });
     }
-
-     // listenChat(); // 중복이라 막아둠 혹시몰라 남김
 
     /* ========================= SERVICE WORKER ========================= */
     if ("serviceWorker" in navigator) {
