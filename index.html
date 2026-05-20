@@ -727,51 +727,49 @@ document.getElementById("sendChatBtn").onclick = async () => {
   if (!text) return;
 
   /* ========================= !오늘 COMMAND ========================= */
-  if (text === "!오늘") {
+if (text === "!오늘") {
 
-    chatInput.value = "";
+  chatInput.value = "";
 
-    const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = new Date().toISOString().split("T")[0];
 
-    const todayEvents = state.events.filter(e =>
-      e.date === todayStr &&
-      state.visibleUsers[e.userEmail]
-    );
+  const todayEvents = state.events.filter(e =>
+    e.date === todayStr &&
+    state.visibleUsers[e.userEmail]
+  );
 
-    let message =
+  let message =
 `🤖 일정받아라 (${todayStr})
 ────────────────`;
 
-    if (todayEvents.length === 0) {
+  if (todayEvents.length === 0) {
 
-      message += `\n📭 오늘 일정은 없다이가`;
+    message += `\n📭 오늘 일정은 없다이가`;
 
-    } else {
+  } else {
 
-      todayEvents.forEach(e => {
+    todayEvents.forEach(e => {
 
-        message += `\n👤 ${e.userName}: [${e.time || "-"}] ${e.title} 있데이`;
+      message += `\n👤 ${e.userName}: [${e.time || "-"}] ${e.title} 있데이`;
 
-      });
-    }
+    });
+  }
 
-    message += `\n────────────────
+  message += `\n────────────────
 💡 필터 켜놓은 놈만 보여준다이가`;
 
-    await addDoc(collection(db, "messages"), {
+  await addDoc(collection(db, "messages"), {
 
-  text: message,
-  userName: "안건전지 봇",
-  userColor: "#10b981",
-  userUid: "system-bot",
+    text: message,
+    userName: "안건전지 봇",
+    userColor: "#10b981",
+    userUid: "system-bot",
+    createdAt: new Date()
 
-  // 추가
-  createdAt: new Date()
-});
+  });
 
-chatInput.value = "";
-
-return;
+  return;
+}
 
   /* ========================= NORMAL CHAT ========================= */
   await addDoc(collection(db, "messages"), {
