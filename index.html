@@ -709,7 +709,7 @@
       }
     });
 
-    /* SEND CHAT */
+  /* SEND CHAT */
 document.getElementById("sendChatBtn").onclick = async () => {
 
   if (!state.currentUser) {
@@ -761,6 +761,18 @@ document.getElementById("sendChatBtn").onclick = async () => {
 
     return;
   }
+
+  /* ========================= NORMAL CHAT ========================= */
+  await addDoc(collection(db, "messages"), {
+    text,
+    userName: state.currentUser.name,
+    userColor: state.currentUser.color,
+    userUid: state.currentUser.uid,
+    createdAt: new Date()
+  });
+
+  chatInput.value = "";
+};
 
   /* ========================= NORMAL CHAT ========================= */
   await addDoc(collection(db, "messages"), {
