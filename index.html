@@ -760,15 +760,18 @@ document.getElementById("sendChatBtn").onclick = async () => {
 
     await addDoc(collection(db, "messages"), {
 
-      text: message,
-      userName: "안건전지 봇",
-      userColor: "#10b981",
-      userUid: "system-bot",
-      createdAt: serverTimestamp()
-    });
+  text: message,
+  userName: "안건전지 봇",
+  userColor: "#10b981",
+  userUid: "system-bot",
 
-    return;
-  }
+  // 추가
+  createdAt: new Date()
+});
+
+chatInput.value = "";
+
+return;
 
   /* ========================= NORMAL CHAT ========================= */
   await addDoc(collection(db, "messages"), {
