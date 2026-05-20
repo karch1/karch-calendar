@@ -383,38 +383,49 @@
       showToast("로그아웃 완료");
     };
 
-    /* ========================= AUTH STATE ========================= */
-    onAuthStateChanged(auth, (user) => {
-      const loginBtn = document.getElementById("loginBtn");
-      const logoutBtn = document.getElementById("logoutBtn");
-      if (user && userColorMap[user.email]) {
-        loginBtn.style.display = "none";
-        logoutBtn.style.display = "block";
-        const p = userColorMap[user.email];
-        state.currentUser = {
-          uid: user.uid,
-          email: user.email,
-          name: p.name,
-          color: p.color
-        };
-        loadEvents();
-        startScheduleNotifier();
+   /* ========================= AUTH STATE ========================= */
+onAuthStateChanged(auth, (user) => {
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
 
-        listenChat();
-        
-      } else {
-        loginBtn.style.display = "block";
-        logoutBtn.style.display = "none";
-        state.currentUser = null;
-        state.events = [];
-        if (scheduleTimer) {
-          clearInterval(scheduleTimer);
-          scheduleTimer = null;
-        }
-        notifiedSchedules.clear();
-        renderCalendar();
-      }
-    });
+  // 로그 찍어보기 (이게 콘솔에 뜨는지 확인!)
+  console.log("Auth 상태 변경:", user ? user.email : "로그아웃");
+
+  if (user && userColorMap[user.email]) {
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "block";
+    const p = userColorMap[user.email];
+    state.currentUser = {
+      uid: user.uid,
+      email: user.email,
+      name: p.name,
+      color: p.color
+    };
+    loadEvents();
+    startScheduleNotifier();
+
+    console.log("채팅 리스너 실행 시도...");
+    listenChat();
+      
+  } else {
+    // 만약 user는 있는데 userColorMap에 이메일이 없으면 여기로 빠짐!
+    if (user) console.warn("사용자 이메일이 userColorMap에 없습니다:", user.email);
+    
+    loginBtn.style.display = "block";
+    logoutBtn.style.display = "none";
+    state.currentUser = null;
+    state.events = [];
+    if (scheduleTimer) {
+      clearInterval(scheduleTimer);
+      scheduleTimer = null;
+    }
+    notifiedSchedules.clear();
+    renderCalendar();
+    
+    // 로그아웃 시 채팅창 비우기
+    if (typeof chatMessages !== 'undefined') chatMessages.innerHTML = "";
+  }
+});
 
     /* ========================= LOAD EVENTS ========================= */
     async function loadEvents() {
@@ -870,7 +881,7 @@
       });
     }
 
-    // listenChat(); 중복이라 막아둠 혹시몰라 남김
+     // listenChat(); // 중복이라 막아둠 혹시몰라 남김
 
     /* ========================= SERVICE WORKER ========================= */
     if ("serviceWorker" in navigator) {
