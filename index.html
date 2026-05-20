@@ -792,7 +792,9 @@
       if (chatUnsub) chatUnsub();
 
       const q = query(collection(db, "messages"), orderBy("createdAt", "asc"), limit(100));
-      chatUnsub = onSnapshot(q, (snapshot) => {
+      
+      // includeMetadataChanges를 추가해 서버 타임스탬프 동기화 딜레이 오류 해결
+      chatUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
         chatMessages.innerHTML = "";
         const docs = snapshot.docs;
 
@@ -825,8 +827,16 @@
           const isBot = m.userUid === "system-bot";
           const isMe = m.userUid === state.currentUser?.uid && !isBot;
           
-          const dateObj = m.createdAt ? m.createdAt.toDate() : new Date();
-          const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          // 전송 중(createdAt이 생기기 전 찰나의 순간) 데이터 튕김 예방
+          let timeStr = "전송중...";
+          if (m.createdAt) {
+            try {
+              const dateObj = m.createdAt.toDate();
+              timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            } catch(e) {
+              timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
+          }
           
           const item = document.createElement("div");
           
