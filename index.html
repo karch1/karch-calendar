@@ -398,7 +398,6 @@
           color: p.color
         };
         loadEvents();
-        listenChat();
         startScheduleNotifier();
       } else {
         loginBtn.style.display = "block";
@@ -709,13 +708,15 @@
       }
     });
 
-    /* SEND CHAT */
+    /* SEND CHAT (실시간 연동을 위해 불필요한 getDocs 파트 삭제 및 최적화) */
     document.getElementById("sendChatBtn").onclick = async () => {
       if (!state.currentUser) {
         return showToast("로그인 필요");
       }
       const text = chatInput.value.trim();
       if (!text) return;
+
+      chatInput.value = ""; // 전송 즉시 인풋 비우기
 
       await addDoc(collection(db, "messages"), {
         text,
@@ -724,24 +725,10 @@
         userUid: state.currentUser.uid,
         createdAt: serverTimestamp()
       });
-
-      const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
-      const snap = await getDocs(q);
-      if (snap.size > 100) {
-        const deleteCount = snap.size - 100;
-        const batch = writeBatch(db);
-        for (let i = 0; i < deleteCount; i++) {
-          const docRef = doc(db, "messages", snap.docs[i].id);
-          batch.delete(docRef);
-        }
-        await batch.commit();
-      }
-      chatInput.value = "";
     };
 
-    /* LISTEN CHAT (타임스탬프 누락 우회 및 안전 렌더링 보정 버전) */
+    /* LISTEN CHAT (로그인 상태와 무관하게 앱 시작과 동시에 무조건 상시 감시하도록 밖으로 이동) */
     function listenChat() {
-      if (!state.currentUser) return;
       if (chatUnsub) chatUnsub();
 
       const q = query(collection(db, "messages"), orderBy("createdAt", "asc"), limit(100));
@@ -778,7 +765,6 @@
           const isBot = m.userUid === "system-bot";
           const isMe = m.userUid === state.currentUser?.uid && !isBot;
           
-          // 핵심 해결책: createdAt이 누락(null)인 임시 데이터 상태여도 빈 칸 대신 현재 시간으로 유연하게 백업
           const dateObj = m.createdAt ? m.createdAt.toDate() : new Date();
           const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
           
@@ -810,6 +796,9 @@
         isFirstChatLoad = false;
       });
     }
+
+    // 앱 구동 시 무조건 최초 1회 채팅 실시간 리스너 실행 
+    listenChat();
 
     /* ========================= SERVICE WORKER ========================= */
     if ("serviceWorker" in navigator) {
