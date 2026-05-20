@@ -399,6 +399,9 @@
         };
         loadEvents();
         startScheduleNotifier();
+
+        listenChat();
+        
       } else {
         loginBtn.style.display = "block";
         logoutBtn.style.display = "none";
@@ -867,7 +870,7 @@
       });
     }
 
-    listenChat();
+    // listenChat(); 중복이라 막아둠 혹시몰라 남김
 
     /* ========================= SERVICE WORKER ========================= */
     if ("serviceWorker" in navigator) {
