@@ -205,10 +205,12 @@
     .chat-item { display: flex; margin-bottom: 12px; }
     .chat-left { justify-content: flex-start; }
     .chat-right { justify-content: flex-end; }
+    .chat-center { justify-content: center; text-align: center; }
     .chat-box { max-width: 70%; display: flex; flex-direction: column; }
     .chat-meta { display: flex; gap: 8px; font-size: 11px; font-weight: 700; margin-bottom: 4px; }
     .chat-time { font-size: 10px; color: #9ca3af; align-self: flex-end; margin-left: 4px; margin-right: 4px; }
     .chat-bubble { border-radius: 14px; padding: 10px; word-break: break-word; white-space: pre-wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .bot-bubble { background: #f3f4f6; color: #374151; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px 12px; max-width: 90%; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -527,7 +529,7 @@
         showToast("수정 완료");
 
         await addDoc(collection(db, "messages"), {
-          text: `📢 [일정 수정] ${formattedDate} ${timeDisplay}"${title}" 일정이 수정되었습니다.`,
+          text: `📢 [일정 수정]\n${formattedDate} ${timeDisplay}\n"${title}" 일정이 수정되었습니다.`,
           userName: "시스템 봇",
           userColor: "#10b981",
           userUid: "system-bot",
@@ -539,7 +541,7 @@
         showToast("저장 완료");
 
         await addDoc(collection(db, "messages"), {
-          text: `📅 [일정 등록] ${formattedDate} ${timeDisplay}"${title}" 일정을 등록했습니다!`,
+          text: `📅 [일정 등록]\n${formattedDate} ${timeDisplay}\n"${title}" 일정을 등록했습니다!`,
           userName: "시스템 봇",
           userColor: "#4f46e5",
           userUid: "system-bot",
@@ -772,23 +774,38 @@
 
         snapshot.forEach(doc => {
           const m = doc.data();
-          if(!m.createdAt) return;
           
-          const isMe = m.userUid === state.currentUser?.uid && m.userUid !== "system-bot";
-          const timeStr = m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "";
+          // 시스템 봇이거나 유저가 입력한 텍스트 렌더링 핸들링
+          const isBot = m.userUid === "system-bot";
+          const isMe = m.userUid === state.currentUser?.uid && !isBot;
+          
+          // 실시간 저장 처리 중 createdAt이 순간 null일 수 있으므로 현재 로컬 시간으로 백업 처리
+          const dateObj = m.createdAt ? m.createdAt.toDate() : new Date();
+          const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
           
           const item = document.createElement("div");
-          item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
           
-          item.innerHTML = `
-            <div class="chat-box">
-              ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
-              <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
-                <div class="chat-bubble" style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">${m.text}</div>
-                <span class="chat-time">${timeStr}</span>
+          if (isBot) {
+            // 시스템 봇 알림 UI 디자인 (중앙 정렬 배너 스타일)
+            item.className = "chat-item chat-center";
+            item.innerHTML = `
+              <div class="bot-bubble mx-auto" style="border-left: 4px solid ${m.userColor || '#4f46e5'}">
+                ${m.text.replaceAll('\n', '<br>')}
               </div>
-            </div>
-          `;
+            `;
+          } else {
+            // 일반 사용자 메시지 UI 디자인
+            item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
+            item.innerHTML = `
+              <div class="chat-box">
+                ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
+                <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
+                  <div class="chat-bubble" style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">${m.text}</div>
+                  <span class="chat-time">${timeStr}</span>
+                </div>
+              </div>
+            `;
+          }
           chatMessages.appendChild(item);
         });
         
