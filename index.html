@@ -805,7 +805,11 @@ onAuthStateChanged(auth, (user) => {
     function listenChat() {
       if (chatUnsub) chatUnsub();
 
-      const q = query(collection(db, "messages"), orderBy("createdAt", "asc"), limit(100));
+      const q = query(
+  collection(db, "messages"),
+  orderBy("createdAt", "asc"),
+  limit(100)
+);
       
       // includeMetadataChanges를 추가해 서버 타임스탬프 동기화 딜레이 오류 해결
       chatUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
