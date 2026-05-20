@@ -710,35 +710,88 @@
     });
 
     /* SEND CHAT */
-    document.getElementById("sendChatBtn").onclick = async () => {
-      if (!state.currentUser) {
-        return showToast("로그인 필요");
-      }
-      const text = chatInput.value.trim();
-      if (!text) return;
+document.getElementById("sendChatBtn").onclick = async () => {
 
-      await addDoc(collection(db, "messages"), {
-        text,
-        userName: state.currentUser.name,
-        userColor: state.currentUser.color,
-        userUid: state.currentUser.uid,
-        createdAt: serverTimestamp()
+  if (!state.currentUser) {
+    return showToast("로그인 필요");
+  }
+
+  const text = chatInput.value.trim();
+  if (!text) return;
+
+  /* ========================= !오늘 COMMAND ========================= */
+  if (text === "!오늘") {
+
+    chatInput.value = "";
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const todayEvents = state.events.filter(e =>
+      e.date === todayStr &&
+      state.visibleUsers[e.userEmail]
+    );
+
+    let message =
+`🤖 오늘의 스케줄 브리핑 (${todayStr})
+────────────────`;
+
+    if (todayEvents.length === 0) {
+
+      message += `\n📭 오늘 일정은 없다이가`;
+
+    } else {
+
+      todayEvents.forEach(e => {
+
+        message += `\n👤 ${e.userName}: [${e.time || "-"}] ${e.title} 있데이`;
+
       });
+    }
 
-      const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
-      const snap = await getDocs(q);
-      if (snap.size > 100) {
-        const deleteCount = snap.size - 100;
-        const batch = writeBatch(db);
-        for (let i = 0; i < deleteCount; i++) {
-          const docRef = doc(db, "messages", snap.docs[i].id);
-          batch.delete(docRef);
-        }
-        await batch.commit();
-      }
-      chatInput.value = "";
-    };
+    message += `\n────────────────
+💡 필터 켜놓은 놈만 보여준다이가`;
 
+    await addDoc(collection(db, "messages"), {
+      text: message,
+      userName: "안건전지 봇",
+      userColor: "#10b981",
+      userUid: "system-bot",
+      createdAt: serverTimestamp()
+    });
+
+    return;
+  }
+
+  /* ========================= NORMAL CHAT ========================= */
+  await addDoc(collection(db, "messages"), {
+    text,
+    userName: state.currentUser.name,
+    userColor: state.currentUser.color,
+    userUid: state.currentUser.uid,
+    createdAt: serverTimestamp()
+  });
+
+  const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
+  const snap = await getDocs(q);
+
+  if (snap.size > 100) {
+
+    const deleteCount = snap.size - 100;
+
+    const batch = writeBatch(db);
+
+    for (let i = 0; i < deleteCount; i++) {
+
+      const docRef = doc(db, "messages", snap.docs[i].id);
+
+      batch.delete(docRef);
+    }
+
+    await batch.commit();
+  }
+
+  chatInput.value = "";
+};
     /* LISTEN CHAT */
     function listenChat() {
       if (!state.currentUser) return;
