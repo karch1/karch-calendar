@@ -410,11 +410,16 @@
         logoutBtn.style.display = "none";
         state.currentUser = null;
         state.events = [];
+        if (chatUnsub) {
+          chatUnsub();
+          chatUnsub = null;
+        }
         if (scheduleTimer) {
           clearInterval(scheduleTimer);
           scheduleTimer = null;
         }
         notifiedSchedules.clear();
+        document.getElementById("chatMessages").innerHTML = "";
         renderCalendar();
       }
     });
@@ -672,13 +677,21 @@
           <div class="mt-2 text-xs font-bold" style="color:${e.userColor};">작성자 : ${e.userName}</div>
           <div style="margin-top:12px;display:flex;gap:6px;">
             ${editable ? `
-              <button onclick='editEvent(${JSON.stringify(e).replaceAll('"', '&quot;')})' class="px-3 py-1 bg-indigo-500 text-white rounded font-bold text-xs">수정</button>
-              <button onclick="deleteEvent('${e.id}')" class="px-3 py-1 bg-red-500 text-white rounded font-bold text-xs">삭제</button>
+              <button id="modalEditBtn" class="px-3 py-1 bg-indigo-500 text-white rounded font-bold text-xs">수정</button>
+              <button id="modalDelBtn" class="px-3 py-1 bg-red-500 text-white rounded font-bold text-xs">삭제</button>
             ` : ''}
-            <button onclick="openDayModal('${e.date}')" class="px-3 py-1 bg-gray-400 text-white rounded font-bold text-xs">목록</button>
+            <button id="modalListBtn" class="px-3 py-1 bg-gray-400 text-white rounded font-bold text-xs">목록</button>
           </div>
         </div>
       `;
+      
+      // 모듈 시스템 내부 핸들러 바인딩 (인라인 우회 해결책)
+      if (editable) {
+        document.getElementById("modalEditBtn").onclick = () => editEvent(e);
+        document.getElementById("modalDelBtn").onclick = () => deleteEvent(e.id);
+      }
+      document.getElementById("modalListBtn").onclick = () => openDayModal(e.date);
+      
       modal.style.display = "flex";
     };
 
@@ -702,6 +715,8 @@
       const text = chatInput.value.trim();
       if (!text) return;
 
+      chatInput.value = "";
+
       await addDoc(collection(db, "messages"), {
         text,
         userName: state.currentUser.name,
@@ -709,78 +724,60 @@
         userUid: state.currentUser.uid,
         createdAt: serverTimestamp()
       });
-
-      /* 100개 초과 삭제 로직 */
-      const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
-      const snap = await getDocs(q);
-      if (snap.size > 100) {
-        const deleteCount = snap.size - 100;
-        const batch = writeBatch(db);
-        for (let i = 0; i < deleteCount; i++) {
-          const docRef = doc(db, "messages", snap.docs[i].id);
-          batch.delete(docRef);
-        }
-        await batch.commit();
-      }
-      chatInput.value = "";
     };
 
     function listenChat() {
-  if (!state.currentUser) return;
-  if (chatUnsub) chatUnsub();
+      if (!state.currentUser) return;
+      if (chatUnsub) chatUnsub();
 
-  const q = query(
-    collection(db, "messages"),
-    orderBy("createdAt"),
-    limit(100)
-  );
+      const q = query(
+        collection(db, "messages"),
+        orderBy("createdAt", "desc"),
+        limit(50)
+      );
 
-  chatUnsub = onSnapshot(q, (snapshot) => {
+      chatUnsub = onSnapshot(q, (snapshot) => {
+        chatMessages.innerHTML = "";
+        const docs = [...snapshot.docs].reverse();
 
-    snapshot.docChanges().forEach(change => {
+        docs.forEach(doc => {
+          const m = doc.data();
+          const isMe = state.currentUser ? m.userUid === state.currentUser.uid : false;
+          const time = m.createdAt?.toDate ? m.createdAt.toDate() : new Date();
 
-  if (change.type === "added") {
+          const timeStr = time.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+              
+          const item = document.createElement("div");
+          item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
 
-    const m = change.doc.data();
-
-    if (!m.createdAt) return; // 👉 먼저 필터링
-
-    const isMe = state.currentUser
-      ? m.userUid === state.currentUser.uid
-      : false;
-    
-    const time = m.createdAt.toDate
-      ? m.createdAt.toDate()
-      : new Date(m.createdAt);
-
-    const timeStr = time.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-        
-        const item = document.createElement("div");
-        item.className = `chat-item ${isMe ? 'chat-right' : 'chat-left'}`;
-
-        item.innerHTML = `
-          <div class="chat-box">
-            ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
-            <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
-              <div class="chat-bubble"
-                   style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">
-                ${m.text}
+          item.innerHTML = `
+            <div class="chat-box">
+              ${!isMe ? `<div class="chat-meta" style="color:${m.userColor}">${m.userName}</div>` : ''}
+              <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end">
+                <div class="chat-bubble"
+                     style="background:${isMe ? '#4f46e5' : '#e5e7eb'}; color:${isMe ? '#fff' : '#111'}">
+                  ${m.text}
+                </div>
+                <span class="chat-time">${timeStr}</span>
               </div>
-              <span class="chat-time">${timeStr}</span>
             </div>
-          </div>
-        `;
+          `;
 
-        chatMessages.appendChild(item);
-      }
-    });
+          chatMessages.appendChild(item);
+        });
 
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  });
-}
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      });
+    }
+
+    // 전역 스코프 누수 보완용 바인딩
+    window.openDayModal = openDayModal;
+    window.openEventDetail = openEventDetail;
+    window.editEvent = editEvent;
+    window.deleteEvent = deleteEvent;
 
     /* ========================= SERVICE WORKER ========================= */
     if ("serviceWorker" in navigator) {
@@ -817,14 +814,12 @@
           const eventTime = new Date(`${e.date}T${e.time}:00`);
           const diff = eventTime - now;
 
-          // 5분 전 알림
           if (diff > 0 && diff <= 5 * 60 * 1000) {
             const key = e.id + "_5min";
             if (notifiedSchedules.has(key)) return;
             notifiedSchedules.add(key);
             triggerScheduleNotification(e, "5분 전");
           }
-          // 정시 알림
           if (diff > 0 && diff <= 1000) {
             const key = e.id + "_now";
             if (notifiedSchedules.has(key)) return;
@@ -856,6 +851,9 @@
       console.log("포그라운드 알림", payload);
       showToast(payload.notification.title);
     });
+
+    // 앱 구동 시 초기 캘린더 렌더링 호출
+    renderCalendar();
   </script>
 </body>
 </html>
