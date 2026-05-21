@@ -96,6 +96,7 @@
       border-radius: 20px;
       opacity: 0;
       transition: 0.3s;
+      z-index: 99999;
     }
     #userSidebar { transition: 0.3s; }
     #sidebarToggle { display: none; }
@@ -322,8 +323,7 @@
     };
 
     let chatUnsub = null;
-    let lastMessageId = null;
-    let isFirstChatLoad = true;
+    let lastProcessedMsgId = null; // 중복 봇 처리 방지용 키
     let scheduleTimer = null;
     let notifiedSchedules = new Set();
 
@@ -333,11 +333,13 @@
       "ssang9764@gmail.com": { name: "생마", color: "#38bdf8" },
       "cksgml0@naver.com": { name: "연막", color: "#8b5e3c" },
       "ahn7770@gmail.com": { name: "안크", color: "#ef4444" },
-      "huigi@email.com": { name: "희기", color: "#f97316" }
+      "huigi@email.com": { name: "희기", color: "#f97316" },
+      "bot@bot.com": { name: "🤖 안건전지 봇", color: "#10b981" } // 봇 프로필 정의
     };
 
+    // 기본 필터링 대상에서 봇은 제외하거나 포함할 수 있도록 유저 리스트만 바인딩
     Object.keys(userColorMap).forEach(email => {
-      state.visibleUsers[email] = true;
+      if(email !== "bot@bot.com") state.visibleUsers[email] = true;
     });
 
     /* ========================= ADMIN ========================= */
@@ -376,6 +378,38 @@
       t.innerText = msg;
       t.style.opacity = 1;
       setTimeout(() => { t.style.opacity = 0; }, 2000);
+    }
+
+    /* ========================= SYSTEM NOTIFICATION (PC 우측하단 푸시) ========================= */
+    function triggerSystemNotification(title, options) {
+      // 인앱 알림 토스트
+      showToast(title);
+      
+      // 권한 검사 및 백그라운드 푸시 실행 (최소화 상태 처리)
+      if (Notification.permission === "granted") {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (reg) {
+            reg.showNotification(title, {
+              icon: "./icon-192.png",
+              badge: "./icon-192.png",
+              ...options
+            });
+          } else {
+            new Notification(title, options);
+          }
+        });
+      }
+    }
+
+    /* ========================= BOT AUTO CHAT SENDER ========================= */
+    async function sendBotMessage(text) {
+      await addDoc(collection(db, "messages"), {
+        text,
+        userName: userColorMap["bot@bot.com"].name,
+        userColor: userColorMap["bot@bot.com"].color,
+        userUid: "system-bot",
+        createdAt: serverTimestamp()
+      });
     }
 
     /* ========================= LOGIN / LOGOUT ========================= */
@@ -497,9 +531,12 @@
 
       await deleteDoc(doc(db, "events", id));
       state.events = state.events.filter(e => e.id !== id);
+      
+      // 🤖 봇이 삭제 알림 발송
+      await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 일정을 삭제했습니다.\n🗑️ 삭제된 일정: ${target.title} (${target.date})`);
+      
       renderCalendar();
       closeModal('dayModal');
-      showToast("삭제 완료");
     };
 
     /* ========================= CLOSE MODAL ========================= */
@@ -507,7 +544,7 @@
       document.getElementById(id).style.display = "none";
     };
 
-    /* ========================= SAVE EVENT ========================= */
+    /* ========================= SAVE EVENT (등록 및 수정) ========================= */
     document.getElementById('saveBtn').onclick = async () => {
       const title = document.getElementById('eventTitle').value.trim();
       const time = document.getElementById('eventTime').value;
@@ -532,11 +569,15 @@
         const idx = state.events.findIndex(e => e.id === state.editId);
         state.events[idx] = { ...state.events[idx], ...data };
         state.editId = null;
-        showToast("수정 완료");
+        
+        // 🤖 봇이 수정 알림 발송
+        await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 일정을 수정했습니다.\n✏️ 수정된 일정: ${title} (${data.date} ${time})`);
       } else {
         const ref = await addDoc(collection(db, "events"), data);
         state.events.push({ id: ref.id, ...data });
-        showToast("저장 완료");
+        
+        // 🤖 봇이 등록 알림 발송
+        await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 새 일정을 등록했습니다.\n📅 일정명: ${title} (${data.date} ${time})`);
       }
       renderCalendar();
       closeModal('editModal');
@@ -548,6 +589,7 @@
       const wrap = document.getElementById("userFilterList");
       wrap.innerHTML = "";
       Object.entries(userColorMap).forEach(([email, user]) => {
+        if(email === "bot@bot.com") return; // 필터 목록에선 봇 제외
         const row = document.createElement("label");
         row.className = "flex items-center gap-2 mb-2 cursor-pointer";
         row.innerHTML = `
@@ -685,7 +727,6 @@
         </div>
       `;
       
-      // 모듈 시스템 내부 핸들러 바인딩 (인라인 우회 해결책)
       if (editable) {
         document.getElementById("modalEditBtn").onclick = () => editEvent(e);
         document.getElementById("modalDelBtn").onclick = () => deleteEvent(e.id);
@@ -695,7 +736,7 @@
       modal.style.display = "flex";
     };
 
-    /* ========================= CHAT CODE ========================= */
+    /* ========================= CHAT CODE & REALTIME BOT ENGINE ========================= */
     const chatMessages = document.getElementById("chatMessages");
     const chatInput = document.getElementById("chatInput");
 
@@ -717,6 +758,7 @@
 
       chatInput.value = "";
 
+      // 사용자가 입력한 메시지 등록
       await addDoc(collection(db, "messages"), {
         text,
         userName: state.currentUser.name,
@@ -726,6 +768,7 @@
       });
     };
 
+    /* LISTEN CHAT & SERVER SIDE SNAPSHOT BOT RESPONSE */
     function listenChat() {
       if (!state.currentUser) return;
       if (chatUnsub) chatUnsub();
@@ -736,7 +779,7 @@
         limit(50)
       );
 
-      chatUnsub = onSnapshot(q, (snapshot) => {
+      chatUnsub = onSnapshot(q, async (snapshot) => {
         chatMessages.innerHTML = "";
         const docs = [...snapshot.docs].reverse();
 
@@ -770,10 +813,51 @@
         });
 
         chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // [실시간 봇 처리 코어] DB 리스너 베이스로 구조 변경해 밀림 현상 방지
+        if (docs.length > 0) {
+          const latestMsgDoc = docs[docs.length - 1];
+          const latestMsg = latestMsgDoc.data();
+
+          // 방금 새로 들어온 메시지이고, 내가 처리한 적 없는 메시지 ID일 때만 실행
+          if (latestMsgDoc.id !== lastProcessedMsgId && latestMsg.text === "!오늘" && latestMsg.userUid !== "system-bot") {
+            lastProcessedMsgId = latestMsgDoc.id; // 즉시 락(Lock)을 걸어 무한 루프 차단
+
+            const todayStr = new Date().toISOString().split("T")[0];
+            const todaysEvents = state.events.filter(e => e.date === todayStr);
+
+            let summaryText = `📅 [오늘의 일정 요약] (${todayStr})\n`;
+            if (todaysEvents.length === 0) {
+              summaryText += "등록된 일정이 없습니다. 깨끗한 하루 되세요! ✨";
+            } else {
+              // 시간순 정렬
+              todaysEvents.sort((a,b) => (a.time || "").localeCompare(b.time || ""));
+              todaysEvents.forEach((e, idx) => {
+                summaryText += `${idx + 1}. [${e.time || "시간미정"}] ${e.title} (작성자: ${e.userName})\n`;
+                if(e.memo) summaryText += `   💬 메모: ${e.memo}\n`;
+              });
+            }
+
+            // 실시간 리스너 밖이 아닌 안에서 비동기로 온전하게 DB에 기록하여 연쇄 즉시 동기화
+            await sendBotMessage(summaryText);
+          }
+
+          // 시스템 알림 연동: 다른 사람이 채팅이나 봇 메시지를 쳤을 때 PC 백그라운드 푸시 알림 트리거
+          if (latestMsgDoc.id !== window.lastNotifiedChatId && latestMsg.userUid !== state.currentUser.uid) {
+            window.lastNotifiedChatId = latestMsgDoc.id;
+            
+            // 브라우저가 백그라운드 상태(최소화)일 때만 시스템 푸시 알림 발생
+            if (document.visibilityState === "hidden") {
+              triggerSystemNotification(`💬 ${latestMsg.userName}`, {
+                body: latestMsg.text,
+                tag: "chat-msg"
+              });
+            }
+          }
+        }
       });
     }
 
-    // 전역 스코프 누수 보완용 바인딩
     window.openDayModal = openDayModal;
     window.openEventDetail = openEventDetail;
     window.editEvent = editEvent;
@@ -818,41 +902,34 @@
             const key = e.id + "_5min";
             if (notifiedSchedules.has(key)) return;
             notifiedSchedules.add(key);
-            triggerScheduleNotification(e, "5분 전");
+            
+            triggerSystemNotification("📅 일정 5분 전 알림", {
+              body: `${e.title}\n시간: ${e.time}`,
+              tag: "schedule-" + e.id,
+              renotify: false
+            });
           }
           if (diff > 0 && diff <= 1000) {
             const key = e.id + "_now";
             if (notifiedSchedules.has(key)) return;
             notifiedSchedules.add(key);
-            triggerScheduleNotification(e, "지금 시작");
+
+            triggerSystemNotification("📅 일정 시작 알림", {
+              body: `${e.title}\n지금 바로 시작합니다.`,
+              tag: "schedule-" + e.id,
+              renotify: false
+            });
           }
         });
       }, 10000);
     }
 
-    /* ========================= NOTIFICATION CORE ========================= */
-    function triggerScheduleNotification(event, label) {
-      showToast(`📅 ${label}`);
-      if (Notification.permission !== "granted") return;
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (!reg) return;
-        reg.showNotification("📅 일정 알림", {
-          body: `${label}\n${event.title}`,
-          icon: "./icon-192.png",
-          badge: "./icon-192.png",
-          tag: "schedule-" + event.id,
-          renotify: false
-        });
-      });
-    }
-
     /* ========================= FOREGROUND NOTIFICATION ========================= */
     onMessage(messaging, (payload) => {
       console.log("포그라운드 알림", payload);
-      showToast(payload.notification.title);
+      triggerSystemNotification(payload.notification.title, { body: payload.notification.body });
     });
 
-    // 앱 구동 시 초기 캘린더 렌더링 호출
     renderCalendar();
   </script>
 </body>
