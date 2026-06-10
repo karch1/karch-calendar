@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#1ac486">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
@@ -11,119 +11,163 @@
   <title>나의 스마트 스케줄러</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+    
     body {
-      font-family: 'Inter', sans-serif;
-      background: #f3f4f6;
+      font-family: 'Noto Sans KR', sans-serif;
+      background: #fafafa;
       margin: 0;
       padding: 0;
+      color: #333;
     }
     .calendar-container {
       flex: 1;
       max-width: none;
-      padding: 1rem;
+      padding: 1.5rem;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
+    /* 타임트리 스타일의 극도로 얇고 깨끗한 격자선 표현 */
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 1px;
-      background: #e5e7eb;
-      border-radius: 16px;
+      background: #eef0f2;
+      border: 1px solid #eef0f2;
+      border-radius: 12px;
       overflow: hidden;
       flex-grow: 1;
-      align-items: start;
+      align-items: stretch;
     }
     .calendar-day {
       background: #fff;
-      padding: 6px;
-      min-height: 100px;
+      padding: 8px 6px;
+      min-height: 110px;
       height: auto;
       overflow-wrap: break-word;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
     }
     .day-label {
       text-align: center;
-      padding: 10px;
-      font-weight: 800;
+      padding: 10px 0;
+      font-weight: 700;
+      font-size: 13px;
       background: #fff;
+      color: #666;
+      border-bottom: 1px solid #eef0f2;
     }
+    
+    /* CSS 선택자를 활용해 클래스 변경 없이 일요일(빨강)/토요일(파랑) 컬러 자동 지정 */
+    .day-label:nth-child(7n+1) { color: #ff4d4f; }
+    .day-label:nth-child(7n) { color: #1890ff; }
+
+    /* 타임트리 스케줄 바 스타일 (둥근 사각형 블록 형태) */
     .event-bar {
-      font-size: 12px;
+      font-size: 11px;
+      font-weight: 500;
       padding: 3px 6px;
-      border-radius: 6px;
+      border-radius: 4px;
       color: #fff;
-      margin-top: 2px;
-      word-break: break-word;
-      white-space: normal;
+      margin-top: 1px;
+      word-break: break-all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
     }
+    
+    /* 모달 팝업의 고급스러운 미니멀화 */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.4);
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 100;
+      backdrop-filter: blur(2px);
     }
     .modal-content {
       background: #fff;
-      width: 95%;
-      max-width: 500px;
-      border-radius: 16px;
-      padding: 20px;
-      max-height: 90vh;
+      width: 92%;
+      max-width: 440px;
+      border-radius: 20px;
+      padding: 24px;
+      max-height: 85vh;
       overflow-y: auto;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     }
     .btn {
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-weight: bold;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
       cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
-    .btn-blue { background: #4f46e5; color: white; }
-    .btn-red { background: #ef4444; color: white; }
-    .btn-gray { background: #6b7280; color: white; }
+    /* 기존 인디고 블루를 타임트리 시그니처 그린(#1ac486)으로 맵핑 */
+    .btn-blue { background: #1ac486; color: white; }
+    .btn-blue:hover { background: #159f6d; }
+    .btn-red { background: #fff5f5; color: #ff4d4f; border: 1px solid #ffccd5; }
+    .btn-red:hover { background: #ffe3e6; }
+    .btn-gray { background: #f1f3f5; color: #495057; }
+    .btn-gray:hover { background: #e9ecef; }
+    
     #toast {
       position: fixed;
-      bottom: 20px;
+      bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      background: #111;
+      background: #222c3c;
       color: white;
-      padding: 10px 20px;
-      border-radius: 20px;
+      padding: 12px 24px;
+      border-radius: 30px;
       opacity: 0;
-      transition: 0.3s;
+      transition: 0.3s ease;
       z-index: 99999;
+      font-size: 13px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
     }
-    #userSidebar { transition: 0.3s; }
+    #userSidebar { transition: transform 0.3s ease; }
     #sidebarToggle { display: none; }
+    
     @media (min-width: 769px) {
       #userSidebar { transform: translateX(0); }
     }
     @media (max-width: 768px) {
-      .calendar-day { min-height: 140px; }
-      .event-bar { font-size: 11px; padding: 2px 4px; }
+      .calendar-day { min-height: 110px; }
+      .event-bar { font-size: 10px; padding: 2px 4px; }
       #userSidebar { transform: translateX(-120%); }
       #userSidebar.active { transform: translateX(0); }
-      #userSidebar { top: 140px !important; }
-      #sidebarToggle { display: block; top:90px; }
+      #userSidebar { top: 120px !important; }
+      #sidebarToggle { 
+        display: block; top: 20px; left: 20px; 
+        padding: 8px 14px; border-radius: 8px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      }
     }
     .app-layout {
       display: flex;
-      gap: 16px;
+      gap: 20px;
       align-items: flex-start;
-      max-width: 1700px;
+      max-width: 1750px;
       margin: 0 auto;
+      padding: 0 10px;
     }
+    
+    /* 우측 채팅창을 슬림하고 모던한 메신저 스타일로 변경 */
     #chatSidebar {
-      width: 340px;
-      height: 95vh;
+      width: 350px;
+      height: calc(100vh - 20px);
       background: #fff;
       border-radius: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+      border: 1px solid #eef0f2;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -132,56 +176,74 @@
       margin-top: 10px;
     }
     #chatHeader {
-      background: #4f46e5;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 800;
-      padding: 16px;
+      background: #fff;
+      color: #222;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 18px 20px;
+      border-bottom: 1px solid #eef0f2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     #chatMessages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  background: #f1f5f9;
-}
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
     #chatInputWrap {
       display: flex;
-      border-top: 1px solid #e5e7eb;
+      padding: 12px;
+      border-top: 1px solid #eef0f2;
       background: #fff;
+      gap: 8px;
     }
     #chatInput {
       flex: 1;
-      border: none;
+      border: 1px solid #e9ecef;
+      border-radius: 24px;
       outline: none;
-      padding: 14px;
+      padding: 10px 18px;
       font-size: 14px;
+      background: #f1f3f5;
+      transition: all 0.2s;
+    }
+    #chatInput:focus {
+      background: #fff;
+      border-color: #1ac486;
     }
     #sendChatBtn {
       border: none;
-      background: #4f46e5;
+      background: #1ac486;
       color: #fff;
-      padding: 0 18px;
+      padding: 0 20px;
+      border-radius: 24px;
       font-weight: 700;
+      font-size: 13px;
       cursor: pointer;
+      transition: background 0.2s;
     }
+    #sendChatBtn:hover { background: #159f6d; }
+    
     #mobileChatToggle { display: none; }
     @media (max-width: 1200px) {
       #mobileChatToggle {
         display: flex;
         position: fixed;
-        right: 16px;
-        bottom: 16px;
-        width: 60px;
-        height: 60px;
+        right: 20px;
+        bottom: 20px;
+        width: 56px;
+        height: 56px;
         border: none;
-        border-radius: 999px;
-        background: #4f46e5;
+        border-radius: 50%;
+        background: #1ac486;
         color: #fff;
-        font-size: 28px;
+        font-size: 24px;
         align-items: center;
         justify-content: center;
         z-index: 9999;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        box-shadow: 0 8px 24px rgba(26,196,134,0.3);
       }
       #chatSidebar {
         display: flex;
@@ -192,172 +254,102 @@
         z-index: 9998;
         border-radius: 0;
         margin-top: 0;
-        }
-      #chatSidebar.chat-closed {
-        display: none;
+        top: 0;
       }
-
-      #chatSidebar.chat-open {
-        display: flex;
-      }
-      .app-layout { flex-direction: column; }
+      #chatSidebar.chat-closed { display: none; }
+      #chatSidebar.chat-open { display: flex; }
+      .app-layout { flex-direction: column; gap: 0; }
     }
-  .chat-item {
-    display: flex;
-    margin-bottom: 10px;
-  }
-
-.chat-left {
-  justify-content: flex-start;
-}
-
-.chat-right {
-  justify-content: flex-end;
-}
-
-.chat-box {
-  max-width: 88%;
-  display: flex;
-  flex-direction: column;
-}
     
-.chat-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 800;
-  margin-bottom: 6px;
-  padding-left: 4px;
-}
-
-.chat-time {
-  font-size: 10px;
-  color: #9ca3af;
-  margin: 2px 6px 0;
-  white-space: nowrap;
-}
-
-.chat-bubble {
-  border-radius: 18px;
-  padding: 10px 12px;
-  font-size: 14px;
-  line-height: 1.5;
-  word-break: break-word;
-  white-space: pre-wrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-#chatHeader{
-  background:#4f46e5;
-  color:#fff;
-  font-size:18px;
-  font-weight:800;
-  padding:16px;
-
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
-#closeChatBtn{
-  border:none;
-  background:none;
-  color:#fff;
-  font-size:24px;
-  cursor:pointer;
-}
- #closeChatBtn {
-  display: none;
-}
-
-@media (max-width:1200px) {
-  #closeChatBtn {
-    display: block;
-  }
-}
+    .chat-item { display: flex; margin-bottom: 14px; }
+    .chat-left { justify-content: flex-start; }
+    .chat-right { justify-content: flex-end; }
+    .chat-box { max-width: 80%; display: flex; flex-direction: column; }
+    .chat-meta { display: flex; gap: 6px; font-size: 12px; font-weight: 700; color: #444; margin-bottom: 4px; padding-left: 4px; }
+    .chat-time { font-size: 10px; color: #adb5bd; margin-top: auto; padding: 0 4px; white-space: nowrap; }
+    .chat-bubble { border-radius: 16px; padding: 10px 14px; font-size: 14px; line-height: 1.5; word-break: break-word; white-space: pre-wrap; box-shadow: 0 2px 4px rgba(0,0,0,0.02); max-width: 100%; overflow-wrap: anywhere; }
+    .chat-left .chat-bubble { background: #fff; color: #333; border: 1px solid #eef0f2; border-top-left-radius: 4px; }
+    .chat-right .chat-bubble { background: #1ac486; color: #fff; border-top-right-radius: 4px; }
     
+    #closeChatBtn { display: none; border: none; background: none; color: #999; font-size: 20px; cursor: pointer; }
+    @media (max-width: 1200px) { #closeChatBtn { display: block; } }
   </style>
 </head>
 <body>
 
-  <button id="sidebarToggle" class="fixed left-2 top-2 z-[999] btn btn-gray"> ☰ </button>
+  <button id="sidebarToggle" class="btn btn-gray"> ☰ </button>
 
-  <!-- APP LAYOUT -->
   <div class="app-layout">
-    <!-- CALENDAR -->
     <div class="calendar-container">
-      <!-- HEADER -->
-      <header class="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <!-- LEFT -->
-        <div class="flex items-center gap-2">
-          <button onclick="prevMonth()" class="btn btn-gray"> ◀ </button>
-          <h1 id="monthDisplay" class="text-xl font-extrabold min-w-[140px] text-center"> 로딩중... </h1>
-          <button onclick="nextMonth()" class="btn btn-gray"> ▶ </button>
+      <header class="flex flex-wrap justify-between items-center gap-4 mb-5 border-b border-gray-100 pb-4">
+        <div class="flex items-center gap-1">
+          <button onclick="prevMonth()" class="btn btn-gray !p-2 !rounded-lg text-xs"> ◀ </button>
+          <h1 id="monthDisplay" class="text-xl font-bold min-w-[140px] text-center text-gray-800"></h1>
+          <button onclick="nextMonth()" class="btn btn-gray !p-2 !rounded-lg text-xs"> ▶ </button>
         </div>
-        <!-- RIGHT -->
         <div class="flex flex-row gap-2">
-          <button id="loginBtn" onclick="loginGoogle()" class="btn btn-blue"> 로그인 </button>
-          <button id="logoutBtn" onclick="logoutGoogle()" class="btn btn-red" style="display:none;"> 로그아웃 </button>
+          <button id="loginBtn" onclick="loginGoogle()" class="btn btn-blue !text-xs !py-2"> 로그인 </button>
+          <button id="logoutBtn" onclick="logoutGoogle()" class="btn btn-red !text-xs !py-2" style="display:none;"> 로그아웃 </button>
         </div>
       </header>
-      <!-- CALENDAR GRID -->
+      
       <div id="calendar" class="calendar-grid"></div>
     </div>
 
-    <!-- CHAT SIDEBAR -->
     <aside id="chatSidebar" class="chat-closed">
       <div id="chatHeader">
-        💬 팀 채팅
-      <button id="closeChatBtn">✕</button>
+        <span>💬 <b>팀 채팅</b></span>
+        <button id="closeChatBtn">✕</button>
       </div>
       <div id="chatMessages"></div>
       <div id="chatInputWrap">
-        <input id="chatInput" placeholder="메시지 입력">
+        <input id="chatInput" placeholder="메시지를 입력하세요...">
         <button id="sendChatBtn"> 전송 </button>
       </div>
     </aside>
   </div>
 
-  <!-- DAY / DETAIL 통합 모달 -->
   <div id="dayModal" class="modal-overlay" onclick="closeModal('dayModal')">
     <div class="modal-content" onclick="event.stopPropagation()">
-      <h2 id="modalDateTitle" class="text-lg font-bold mb-3"> 날짜 </h2>
+      <h2 id="modalDateTitle" class="text-lg font-bold mb-4 text-gray-800"></h2>
       <div id="modalEventList" class="flex flex-col gap-2"></div>
-      <hr style="margin:15px 0;">
-      <button onclick="openAddForm()" class="btn btn-blue" style="width:100%;"> + 일정 추가 </button>
-      <button onclick="closeModal('dayModal')" class="btn btn-gray" style="width:100%; margin-top:10px;"> 닫기 </button>
+      <hr class="my-4 border-gray-100">
+      <button onclick="openAddForm()" class="btn btn-blue w-full"> + 일정 추가 </button>
+      <button onclick="closeModal('dayModal')" class="btn btn-gray w-full mt-2"> 닫기 </button>
     </div>
   </div>
 
-  <!-- ADD / EDIT 모달 -->
   <div id="editModal" class="modal-overlay" onclick="closeModal('editModal')">
     <div class="modal-content" onclick="event.stopPropagation()">
-      <h2 class="text-lg font-bold mb-3"> 📅 일정 작성 </h2>
-      <input id="eventTitle" placeholder="제목" style="width:100%;padding:10px;margin:5px 0; border:1px solid #e5e7eb; border-radius:8px;">
-      <input id="eventTime" type="time" style="width:100%;padding:10px;margin:5px 0; border:1px solid #e5e7eb; border-radius:8px;">
-      <textarea id="eventInitialMemo" placeholder="메모" style="width:100%;padding:10px;margin:5px 0; border:1px solid #e5e7eb; border-radius:8px; height:100px;"></textarea>
+      <h2 class="text-lg font-bold mb-4 text-gray-800">📅 일정 작성</h2>
+      <div class="flex flex-col gap-3">
+        <input id="eventTitle" placeholder="제목" class="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#1ac486]">
+        <input id="eventTime" type="time" class="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#1ac486]">
+        <textarea id="eventInitialMemo" placeholder="메모를 입력하세요" class="w-full p-3 border border-gray-200 rounded-xl text-sm h-28 focus:outline-none focus:border-[#1ac486] resize-none"></textarea>
+      </div>
       <input type="hidden" id="editId">
-      <button id="saveBtn" class="btn btn-blue" style="width:100%;"> 저장 </button>
-      <button onclick="closeModal('editModal')" class="btn btn-gray" style="width:100%;margin-top:10px;"> 닫기 </button>
+      <div class="flex gap-2 mt-5">
+        <button onclick="closeModal('editModal')" class="btn btn-gray flex-1"> 닫기 </button>
+        <button id="saveBtn" class="btn btn-blue flex-1"> 저장 </button>
+      </div>
     </div>
   </div>
 
-  <!-- USER SIDEBAR -->
-  <aside id="userSidebar" class="fixed left-2 top-24 bg-white shadow-lg rounded-xl p-3 w-44 text-xs font-bold z-50">
-    <div class="mb-2 text-gray-500"> 👤 사용자 필터 </div>
-    <div id="userFilterList"></div>
-    <hr class="my-2">
-    <label class="flex items-center gap-2 cursor-pointer">
-      <input type="checkbox" id="myOnlyToggle"> 내 일정만 보기
+  <aside id="userSidebar" class="fixed left-4 top-24 bg-white shadow-xl border border-gray-100 rounded-2xl p-4 w-48 text-xs font-bold z-50">
+    <div class="mb-3 text-gray-400 tracking-wider flex items-center gap-1.5 text-[10px] uppercase"> 👤 사용자 필터 </div>
+    <div id="userFilterList" class="space-y-1"></div>
+    <hr class="my-3 border-gray-100">
+    <label class="flex items-center gap-2.5 cursor-pointer text-gray-600 font-semibold text-xs">
+      <input type="checkbox" id="myOnlyToggle" class="w-4 h-4 rounded text-[#1ac486] accent-[#1ac486]"> 내 일정만 보기
     </label>
   </aside>
 
-  <!-- TOAST -->
-  <div id="toast"> 알림 </div>
+  <div id="toast"></div>
 
-  <!-- MOBILE CHAT BUTTON -->
   <button id="mobileChatToggle"> 💬 </button>
+
+</body>
+</html>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
