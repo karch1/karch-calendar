@@ -225,7 +225,7 @@
     
     #mobileChatToggle { display: none; }
     
-    /* [수정 반영] 모바일 채팅창 암전 배경 레이어 디자인 */
+    /* 모바일 채팅창 암전 배경 레이어 디자인 */
     #chatBackdrop {
       position: fixed;
       inset: 0;
@@ -250,10 +250,9 @@
         font-size: 24px;
         align-items: center;
         justify-content: center;
-        z-index: 9996; /* 채팅창이 열렸을 때 완전히 가려지도록 레이어 하향 조정 */
+        z-index: 9996;
         box-shadow: 0 8px 24px rgba(26,196,134,0.3);
       }
-      /* [수정 반영] 전체 화면 대신 고급스러운 라이트 슬라이드 드로어로 모바일 스타일 재정의 */
       #chatSidebar {
         position: fixed;
         top: 0;
@@ -338,6 +337,16 @@
       <div class="flex flex-col gap-3">
         <input id="eventTitle" placeholder="제목" class="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#1ac486]">
         <input id="eventTime" type="time" class="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#1ac486]">
+        
+        <div class="flex gap-4 px-1 py-0.5">
+          <label class="flex items-center gap-2 cursor-pointer font-bold text-xs text-gray-600">
+            <input type="checkbox" id="eventShiftDay" class="w-4 h-4 rounded text-[#1ac486] accent-[#1ac486]"> ☀️ 주간 근무 일정
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer font-bold text-xs text-gray-600">
+            <input type="checkbox" id="eventShiftNight" class="w-4 h-4 rounded text-[#1ac486] accent-[#1ac486]"> 🌙 야간 근무 일정
+          </label>
+        </div>
+
         <textarea id="eventInitialMemo" placeholder="메모를 입력하세요" class="w-full p-3 border border-gray-200 rounded-xl text-sm h-28 focus:outline-none focus:border-[#1ac486] resize-none"></textarea>
       </div>
       <input type="hidden" id="editId">
@@ -542,6 +551,8 @@
       state.editId = null;
       document.getElementById('eventTitle').value = "";
       document.getElementById('eventTime').value = "";
+      document.getElementById('eventShiftDay').checked = false; // [신규 추가] 체크 초기화
+      document.getElementById('eventShiftNight').checked = false; // [신규 추가] 체크 초기화
       document.getElementById('eventInitialMemo').value = "";
       document.getElementById('editModal').style.display = "flex";
     };
@@ -560,32 +571,35 @@
     const sidebarToggle = document.getElementById("sidebarToggle");
     sidebarToggle.onclick = () => { sidebar.classList.toggle("active"); };
 
-    /* ========================= [수정 반영] MOBILE CHAT TOGGLE & BACKDROP LOGIC ========================= */
+    /* ========================= MOBILE CHAT TOGGLE & BACKDROP LOGIC ========================= */
     const mobileChatToggle = document.getElementById("mobileChatToggle");
     const chatSidebar = document.getElementById("chatSidebar");
     const chatBackdrop = document.getElementById("chatBackdrop");
 
-    // 공통 모바일 채팅창 닫기 함수 고도화
     function closeMobileChat() {
       chatSidebar.classList.remove("chat-open");
       chatSidebar.classList.add("chat-closed");
       chatBackdrop.style.display = "none";
-      mobileChatToggle.style.display = "flex"; // 닫히면 초록색 플로팅 버튼 다시 노출
+      mobileChatToggle.style.display = "flex";
     }
 
     if (mobileChatToggle) {
       mobileChatToggle.onclick = () => {
         chatSidebar.classList.remove("chat-closed");
         chatSidebar.classList.add("chat-open");
-        chatBackdrop.style.display = "block"; // 외부 흐린 투명막 켜기
-        mobileChatToggle.style.display = "none"; // [버그 해결] 전송 단추 가림 방지를 위해 토글 단추 완전 숨김
+        chatBackdrop.style.display = "block";
+        mobileChatToggle.style.display = "none";
       };
     }
     
-    // X 단추 클릭 처리
     document.getElementById("closeChatBtn").onclick = closeMobileChat;
-    // 외부 빈 암전 영역 터치 시 자동 닫힘 처리 연동 (X 찾기 탈출 고도화)
     chatBackdrop.onclick = closeMobileChat;
+
+    /* ========================= [신규 추가] 주간/야간 체크박스 중복 선택 방지 스크립트 ========================= */
+    const chkDay = document.getElementById('eventShiftDay');
+    const chkNight = document.getElementById('eventShiftNight');
+    chkDay.onchange = () => { if (chkDay.checked) chkNight.checked = false; };
+    chkNight.onchange = () => { if (chkNight.checked) chkDay.checked = false; };
 
     /* ========================= EDIT EVENT OPEN ========================= */
     window.editEvent = function (e) {
@@ -594,6 +608,8 @@
       state.editId = e.id;
       document.getElementById('eventTitle').value = e.title;
       document.getElementById('eventTime').value = e.time || "";
+      document.getElementById('eventShiftDay').checked = e.shiftType === "주간"; // [신규 추가] 불러오기 매핑
+      document.getElementById('eventShiftNight').checked = e.shiftType === "야간"; // [신규 추가] 불러오기 매핑
       document.getElementById('eventInitialMemo').value = e.memo || "";
       document.getElementById('editModal').style.display = "flex";
     };
@@ -606,7 +622,9 @@
 
       await deleteDoc(doc(db, "events", id));
       state.events = state.events.filter(e => e.id !== id);
-      await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 일정을 삭제했습니다.\n🗑️ 삭제된 일정: ${target.title} (${target.date})`);
+      
+      const displayTitle = target.shiftType ? `[${target.shiftType}] ${target.title}` : target.title;
+      await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 일정을 삭제했습니다.\n🗑️ 삭제된 일정: ${displayTitle} (${target.date})`);
       renderCalendar();
       closeModal('dayModal');
     };
@@ -621,6 +639,9 @@
       const title = document.getElementById('eventTitle').value.trim();
       const time = document.getElementById('eventTime').value;
       const memo = document.getElementById('eventInitialMemo').value;
+      
+      // [신규 추가] 선택된 주간/야간 구분 값 추출
+      const shiftType = document.getElementById('eventShiftDay').checked ? "주간" : (document.getElementById('eventShiftNight').checked ? "야간" : "");
 
       if (!state.selectedDateStr) return showToast("날짜 선택");
       if (!title) return showToast("제목 입력");
@@ -630,22 +651,25 @@
         title,
         time,
         memo,
+        shiftType, // [신규 추가] 파이어베이스 필드 저장
         userColor: state.currentUser.color,
         userUid: state.currentUser.uid,
         userEmail: state.currentUser.email,
         userName: state.currentUser.name
       };
 
+      const displayTitle = shiftType ? `[${shiftType}] ${title}` : title;
+
       if (state.editId) {
         await updateDoc(doc(db, "events", state.editId), data);
         const idx = state.events.findIndex(e => e.id === state.editId);
         state.events[idx] = { ...state.events[idx], ...data };
         state.editId = null;
-        await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 일정을 수정했습니다.\n✏️ 수정된 일정: ${title} (${data.date} ${time})`);
+        await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 일정을 수정했습니다.\n✏️ 수정된 일정: ${displayTitle} (${data.date} ${time})`);
       } else {
         const ref = await addDoc(collection(db, "events"), data);
         state.events.push({ id: ref.id, ...data });
-        await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 새 일정을 등록했습니다.\n📅 일정명: ${title} (${data.date} ${time})`);
+        await sendBotMessage(`📢 [알림] ${state.currentUser.name}님이 새 일정을 등록했습니다.\n📅 일정명: ${displayTitle} (${data.date} ${time})`);
       }
       renderCalendar();
       closeModal('editModal');
@@ -739,7 +763,11 @@
           const bar = document.createElement('div');
           bar.className = "event-bar";
           bar.style.background = e.userColor;
-          bar.innerText = e.title;
+          
+          // [신규 추가] 주간/야간 태그 붙여서 캘린더에 표시
+          const displayTitle = e.shiftType ? `[${e.shiftType}] ${e.title}` : e.title;
+          bar.innerText = displayTitle;
+
           bar.onclick = (ev) => {
             ev.stopPropagation();
             openEventDetail(e);
@@ -769,7 +797,11 @@
       events.forEach(e => {
         const div = document.createElement('div');
         div.className = "p-3 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-100 transition text-left";
-        div.innerHTML = `<b class="text-gray-800 text-sm">${e.title}</b><br/><small class="text-gray-400 font-semibold">${e.time || "시간 미정"}</small>`;
+        
+        // [신규 추가] 하루 일정 요약 리스트에도 표시 적용
+        const displayTitle = e.shiftType ? `[${e.shiftType}] ${e.title}` : e.title;
+        div.innerHTML = `<b class="text-gray-800 text-sm">${displayTitle}</b><br/><small class="text-gray-400 font-semibold">${e.time || "시간 미정"}</small>`;
+        
         div.onclick = () => openEventDetail(e);
         list.appendChild(div);
       });
@@ -784,9 +816,12 @@
       const list = document.getElementById('modalEventList');
       const editable = canEditEvent(e);
 
+      // [신규 추가] 상세 모달 제목에 표시 적용
+      const displayTitle = e.shiftType ? `[${e.shiftType}] ${e.title}` : e.title;
+
       list.innerHTML = `
         <div class="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm text-left">
-          <div class="font-black text-xl text-gray-800 tracking-tight">${e.title}</div>
+          <div class="font-black text-xl text-gray-800 tracking-tight">${displayTitle}</div>
           <div class="text-xs font-bold text-gray-400 mt-1 mb-3">🕒 ${e.time || "시간 미정"}</div>
           <div class="p-3 bg-gray-50 rounded-xl text-sm text-gray-600 font-medium whitespace-pre-wrap leading-relaxed min-height-[60px]">${e.memo || "작성된 메모가 없습니다."}</div>
           <div class="mt-4 flex items-center gap-1.5 text-xs font-bold" style="color:${e.userColor};">
@@ -896,7 +931,8 @@
             } else {
               todaysEvents.sort((a,b) => (a.time || "").localeCompare(b.time || ""));
               todaysEvents.forEach((e, idx) => {
-                summaryText += `${idx + 1}. [${e.time || "시간미정"}] ${e.title} (작성자: ${e.userName})\n`;
+                const displayTitle = e.shiftType ? `[${e.shiftType}] ${e.title}` : e.title;
+                summaryText += `${idx + 1}. [${e.time || "시간미정"}] ${displayTitle} (작성자: ${e.userName})\n`;
                 if(e.memo) summaryText += `   💬 메모: ${e.memo}\n`;
               });
             }
@@ -950,13 +986,15 @@
             const key = e.id + "_5min";
             if (notifiedSchedules.has(key)) return;
             notifiedSchedules.add(key);
-            triggerSystemNotification("📅 일정 5분 전 알림", { body: `${e.title}\n시간: ${e.time}`, tag: "schedule-" + e.id, renotify: false });
+            const displayTitle = e.shiftType ? `[${e.shiftType}] ${e.title}` : e.title;
+            triggerSystemNotification("📅 일정 5분 전 알림", { body: `${displayTitle}\n시간: ${e.time}`, tag: "schedule-" + e.id, renotify: false });
           }
           if (diff > 0 && diff <= 1000) {
             const key = e.id + "_now";
             if (notifiedSchedules.has(key)) return;
             notifiedSchedules.add(key);
-            triggerSystemNotification("📅 일정 시작 알림", { body: `${e.title}\n지금 바로 시작합니다.`, tag: "schedule-" + e.id, renotify: false });
+            const displayTitle = e.shiftType ? `[${e.shiftType}] ${e.title}` : e.title;
+            triggerSystemNotification("📅 일정 시작 알림", { body: `${displayTitle}\n지금 바로 시작합니다.`, tag: "schedule-" + e.id, renotify: false });
           }
         });
       }, 10000);
